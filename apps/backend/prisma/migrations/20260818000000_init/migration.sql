@@ -25,6 +25,9 @@ CREATE TYPE "PaymentMethod" AS ENUM ('MOMO_MTN', 'MOMO_MOOV', 'CARD', 'CASH');
 -- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'ESCROW_HELD', 'RELEASED', 'REFUNDED', 'FAILED');
 
+-- CreateEnum
+CREATE TYPE "WithdrawalStatus" AS ENUM ('REQUESTED', 'APPROVED', 'PAID', 'REJECTED');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -36,6 +39,7 @@ CREATE TABLE "User" (
     "photoUrl" TEXT,
     "emailVerified" BOOLEAN NOT NULL DEFAULT false,
     "phoneVerified" BOOLEAN NOT NULL DEFAULT false,
+    "locale" TEXT NOT NULL DEFAULT 'fr',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -118,6 +122,7 @@ CREATE TABLE "Trancon" (
 -- CreateTable
 CREATE TABLE "Booking" (
     "id" TEXT NOT NULL,
+    "reference" TEXT NOT NULL,
     "type" "BookingType" NOT NULL,
     "status" "BookingStatus" NOT NULL DEFAULT 'DRAFT',
     "clientId" TEXT NOT NULL,
@@ -133,6 +138,11 @@ CREATE TABLE "Booking" (
     "durationDays" INTEGER,
     "estimatedPriceFcfa" INTEGER,
     "finalPriceFcfa" INTEGER,
+    "acceptedAt" TIMESTAMP(3),
+    "startedAt" TIMESTAMP(3),
+    "completedAt" TIMESTAMP(3),
+    "cancelledAt" TIMESTAMP(3),
+    "cancelReason" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -160,6 +170,7 @@ CREATE TABLE "DriverWallet" (
     "id" TEXT NOT NULL,
     "driverId" TEXT NOT NULL,
     "balanceFcfa" INTEGER NOT NULL DEFAULT 0,
+    "pendingFcfa" INTEGER NOT NULL DEFAULT 0,
     "commissionRate" DOUBLE PRECISION NOT NULL DEFAULT 0.12,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -167,10 +178,24 @@ CREATE TABLE "DriverWallet" (
 );
 
 -- CreateTable
+CREATE TABLE "WithdrawalRequest" (
+    "id" TEXT NOT NULL,
+    "walletId" TEXT NOT NULL,
+    "amountFcfa" INTEGER NOT NULL,
+    "status" "WithdrawalStatus" NOT NULL DEFAULT 'REQUESTED',
+    "destination" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "settledAt" TIMESTAMP(3),
+
+    CONSTRAINT "WithdrawalRequest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Rating" (
     "id" TEXT NOT NULL,
     "bookingId" TEXT NOT NULL,
     "clientId" TEXT NOT NULL,
+    "driverId" TEXT NOT NULL,
     "score" INTEGER NOT NULL,
     "comment" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -186,6 +211,12 @@ CREATE UNIQUE INDEX "User_phone_key" ON "User"("phone");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Driver_userId_key" ON "Driver"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Document_driverId_type_key" ON "Document"("driverId", "type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Booking_reference_key" ON "Booking"("reference");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Payment_bookingId_key" ON "Payment"("bookingId");
@@ -227,8 +258,14 @@ ALTER TABLE "Payment" ADD CONSTRAINT "Payment_bookingId_fkey" FOREIGN KEY ("book
 ALTER TABLE "DriverWallet" ADD CONSTRAINT "DriverWallet_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "WithdrawalRequest" ADD CONSTRAINT "WithdrawalRequest_walletId_fkey" FOREIGN KEY ("walletId") REFERENCES "DriverWallet"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Rating" ADD CONSTRAINT "Rating_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "Booking"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Rating" ADD CONSTRAINT "Rating_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Rating" ADD CONSTRAINT "Rating_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
