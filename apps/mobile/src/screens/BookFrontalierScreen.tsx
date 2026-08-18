@@ -1,91 +1,123 @@
 import { useEffect, useState } from "react";
 import { Switch, Text, View } from "react-native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { HomeStackParamList } from "../navigation/types";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { ChoiceGroup, type Choice } from "../components/ChoiceGroup";
+import { DateTimeField } from "../components/DateTimeField";
+import { EmptyState, InfoRow, Loading, Notice } from "../components/Feedback";
 import { Screen } from "../components/Screen";
 import { Stepper } from "../components/Stepper";
+import { useI18n } from "../i18n";
 import { useTheme } from "../theme";
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
+import type { Trancon } from "../api/types";
 
-interface Trancon {
-  id: string;
-  originCity: string;
-  destinationCity: string;
-  borderPoint: string | null;
-  priceFcfa: number;
-  estimatedCustomsFeeFcfa: number;
+type Props = NativeStackScreenProps<HomeStackParamList, "BookFrontalier">;
+
+/** Départ par défaut : demain, pour éviter un refus « date passée ». */
+function tomorrow(): Date {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(8, 0, 0, 0);
+  return date;
 }
 
-const fcfa = (amount: number) => `${amount.toLocaleString("fr-FR")} FCFA`;
-
-// MVP : un seul trançon actif (Cotonou <-> Lomé), pas de sélection libre
-// d'itinéraire — voir docs/plan-de-developpement.md.
-export default function BookFrontalierScreen() {
+export default function BookFrontalierScreen({ navigation }: Props) {
   const { colors, space, text } = useTheme();
-  const [trancon, setTrancon] = useState<Trancon | null>(null);
+  const { t, formatAmount } = useI18n();
+
+  const [troncons, setTroncons] = useState<Trancon[] | null>(null);
+  const [tranconId, setTranconId] = useState<string>("");
+  const [departureAt, setDepartureAt] = useState(tomorrow);
   const [isRoundTrip, setIsRoundTrip] = useState(false);
   const [seats, setSeats] = useState(1);
-  const [booking, setBooking] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api
-      .listTroncons()
-      .then((data) => setTrancon((data as unknown as Trancon[])[0] ?? null))
-      .catch(() => {
-        setFailed(true);
-        setStatus("Impossible de charger les trajets disponibles.");
-      });
+      .troncons()
+      .then((list) => {
+        setTroncons(list);
+        setTranconId(list[0]?.id ?? "");
+      })
+      .catch(() => setTroncons([]));
   }, []);
 
-  const multiplier = isRoundTrip ? 2 : 1;
-  const basePrice = trancon ? trancon.priceFcfa * multiplier : 0;
-  const customsFee = trancon ? trancon.estimatedCustomsFeeFcfa * multiplier : 0;
-
-  async function handleBook() {
-    if (!trancon) return;
-    setBooking(true);
-    setFailed(false);
-    setStatus(null);
-    try {
-      await api.bookFrontalier({
-        tranconId: trancon.id,
-        departureAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        isRoundTrip,
-        seats,
-      });
-      setStatus("Réservation créée. Vous pouvez passer au paiement.");
-    } catch {
-      setFailed(true);
-      setStatus("La réservation n'a pas pu être enregistrée. Réessayez.");
-    } finally {
-      setBooking(false);
-    }
-  }
-
-  if (!trancon) {
+  if (troncons === null) {
     return (
       <Screen>
-        <Text style={[text.body, { color: failed ? colors.danger : colors.textMuted }]}>
-          {status ?? "Chargement des trajets…"}
-        </Text>
+        <Loading label={t("common.loading")} />
       </Screen>
     );
   }
 
+  if (troncons.length === 0) {
+    return (
+      <Screen>
+        <EmptyState title={t("common.networkError")} />
+      </Screen>
+    );
+  }
+
+  const selected = troncons.find((tr) => tr.id === tranconId) ?? troncons[0];
+  const legs = isRoundTrip ? 2 : 1;
+  const base = selected.priceFcfa * legs;
+  const customs = selected.estimatedCustomsFeeFcfa * legs;
+
+  const options: Choice<string>[] = troncons.map((tr) => ({
+    value: tr.id,
+    label: `${tr.originCity} → ${tr.destinationCity}`,
+  }));
+
+  async function handleBook() {
+    setError(null);
+    setSubmitting(true);
+    try {
+      const { booking } = await api.bookFrontalier({
+        tranconId: selected.id,
+        departureAt: departureAt.toISOString(),
+        isRoundTrip,
+        seats,
+      });
+      navigation.replace("Payment", { bookingId: booking.id });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        setError(t("booking.pastDate"));
+      } else if (err instanceof ApiError && err.status === 0) {
+        setError(t("common.networkError"));
+      } else {
+        setError(t("common.genericError"));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <Screen scroll>
-      <View style={{ gap: space[1] }}>
-        <Text style={[text.title, { color: colors.text }]}>
-          {trancon.originCity} → {trancon.destinationCity}
+      <ChoiceGroup
+        label={t("booking.chooseRoute")}
+        options={options}
+        value={selected.id}
+        onChange={setTranconId}
+      />
+
+      {selected.borderPoint ? (
+        <Text style={[text.caption, { color: colors.textMuted }]}>
+          {t("booking.borderCrossing", { point: selected.borderPoint })}
         </Text>
-        {trancon.borderPoint ? (
-          <Text style={[text.body, { color: colors.textMuted }]}>
-            Passage par {trancon.borderPoint}
-          </Text>
-        ) : null}
-      </View>
+      ) : null}
+
+      <DateTimeField
+        label={t("booking.departure")}
+        value={departureAt}
+        onChange={setDepartureAt}
+        withTime
+        minimumDate={new Date()}
+      />
 
       <View
         style={{
@@ -95,7 +127,9 @@ export default function BookFrontalierScreen() {
           gap: space[4],
         }}
       >
-        <Text style={[text.label, { color: colors.textMuted }]}>Aller-retour</Text>
+        <Text style={[text.label, { color: colors.textMuted }]}>
+          {t("booking.roundTrip")}
+        </Text>
         <Switch
           value={isRoundTrip}
           onValueChange={setIsRoundTrip}
@@ -104,51 +138,38 @@ export default function BookFrontalierScreen() {
       </View>
 
       <Stepper
-        label="Nombre de places"
+        label={t("booking.passengers")}
         value={seats}
         min={1}
         max={4}
         onChange={setSeats}
       />
+      <Text style={[text.caption, { color: colors.textFaint }]}>
+        {t("booking.seatsHint")}
+      </Text>
 
       <Card>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text style={[text.body, { color: colors.textMuted }]}>Trajet</Text>
-          <Text style={[text.body, { color: colors.text }]}>{fcfa(basePrice)}</Text>
-        </View>
-        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Text style={[text.body, { color: colors.textMuted }]}>
-            Frais de douane estimés
-          </Text>
-          <Text style={[text.body, { color: colors.text }]}>{fcfa(customsFee)}</Text>
-        </View>
+        <InfoRow label={t("booking.tripPrice")} value={formatAmount(base)} />
+        <InfoRow label={t("booking.customsFee")} value={formatAmount(customs)} />
         <View
           style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
             borderTopWidth: 1,
             borderTopColor: colors.border,
             paddingTop: space[3],
             marginTop: space[1],
           }}
         >
-          <Text style={[text.subheading, { color: colors.text }]}>Prix estimé</Text>
-          <Text style={[text.amount, { color: colors.brand }]}>
-            {fcfa(basePrice + customsFee)}
-          </Text>
+          <InfoRow
+            label={t("booking.priceEstimate")}
+            value={formatAmount(base + customs)}
+            emphasis
+          />
         </View>
       </Card>
 
-      <Button label="Réserver" onPress={handleBook} loading={booking} />
+      {error ? <Notice message={error} tone="error" /> : null}
 
-      {status ? (
-        <Text
-          style={[text.caption, { color: failed ? colors.danger : colors.success }]}
-        >
-          {status}
-        </Text>
-      ) : null}
+      <Button label={t("booking.book")} onPress={handleBook} loading={submitting} />
     </Screen>
   );
 }

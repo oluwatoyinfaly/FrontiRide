@@ -1,6 +1,8 @@
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import RootNavigator from "./src/navigation/RootNavigator";
+import { SessionProvider } from "./src/auth/SessionProvider";
+import { I18nProvider } from "./src/i18n";
 import { ThemeProvider, useTheme } from "./src/theme";
 import { useAppFonts } from "./src/theme/useAppFonts";
 
@@ -23,9 +25,13 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <Root />
-      </ThemeProvider>
+      <I18nProvider>
+        <ThemeProvider>
+          <SessionProvider>
+            <Root />
+          </SessionProvider>
+        </ThemeProvider>
+      </I18nProvider>
     </SafeAreaProvider>
   );
 }
