@@ -1,20 +1,44 @@
 import { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Text } from "react-native";
+import { Button } from "../components/Button";
+import { ChoiceGroup, type Choice } from "../components/ChoiceGroup";
+import { Screen } from "../components/Screen";
+import { Stepper } from "../components/Stepper";
+import { useTheme } from "../theme";
 import { api } from "../api/client";
 
-const CITIES = ["Cotonou", "Lomé"] as const;
-const VEHICLE_TYPES = ["ECONOMIQUE", "CONFORT", "SUV", "PREMIUM", "MINIBUS"] as const;
+type City = "Cotonou" | "Lomé";
+type VehicleType = "ECONOMIQUE" | "CONFORT" | "SUV" | "PREMIUM" | "MINIBUS";
 
-// MVP : location à la journée uniquement (pas "à l'heure" ni forfaits spéciaux).
+const CITIES: readonly Choice<City>[] = [
+  { value: "Cotonou", label: "Cotonou" },
+  { value: "Lomé", label: "Lomé" },
+];
+
+const VEHICLE_TYPES: readonly Choice<VehicleType>[] = [
+  { value: "ECONOMIQUE", label: "Économique" },
+  { value: "CONFORT", label: "Confort" },
+  { value: "SUV", label: "SUV / 4x4" },
+  { value: "PREMIUM", label: "Premium" },
+  { value: "MINIBUS", label: "Minibus" },
+];
+
+const fcfa = (amount: number) => `${amount.toLocaleString("fr-FR")} FCFA`;
+
+// MVP : location à la journée uniquement (ni forfait horaire, ni forfait spécial).
 export default function BookLocationVilleScreen() {
-  const [city, setCity] = useState<(typeof CITIES)[number]>("Cotonou");
-  const [vehicleType, setVehicleType] =
-    useState<(typeof VEHICLE_TYPES)[number]>("ECONOMIQUE");
+  const { colors, space, text } = useTheme();
+  const [city, setCity] = useState<City>("Cotonou");
+  const [vehicleType, setVehicleType] = useState<VehicleType>("ECONOMIQUE");
   const [durationDays, setDurationDays] = useState(1);
+  const [booking, setBooking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   async function handleBook() {
-    setStatus("Recherche d'un véhicule disponible...");
+    setBooking(true);
+    setFailed(false);
+    setStatus(null);
     try {
       const result = (await api.bookLocationVille({
         city,
@@ -23,110 +47,49 @@ export default function BookLocationVilleScreen() {
         durationDays,
       })) as { advanceFcfa: number };
       setStatus(
-        `Réservation créée. Acompte à payer : ${result.advanceFcfa.toLocaleString(
-          "fr-FR"
-        )} FCFA (30%).`
+        `Réservation créée. Acompte de 30 % à régler : ${fcfa(result.advanceFcfa)}.`
       );
     } catch {
+      setFailed(true);
       setStatus("Aucun véhicule disponible pour ces critères.");
+    } finally {
+      setBooking(false);
     }
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Ville</Text>
-      <View style={styles.choices}>
-        {CITIES.map((c) => (
-          <Pressable
-            key={c}
-            style={[styles.choice, city === c && styles.choiceActive]}
-            onPress={() => setCity(c)}
-          >
-            <Text style={city === c ? styles.choiceTextActive : styles.choiceText}>
-              {c}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+    <Screen scroll>
+      <ChoiceGroup label="Ville" options={CITIES} value={city} onChange={setCity} />
 
-      <Text style={styles.label}>Type de véhicule</Text>
-      <View style={styles.choices}>
-        {VEHICLE_TYPES.map((v) => (
-          <Pressable
-            key={v}
-            style={[styles.choice, vehicleType === v && styles.choiceActive]}
-            onPress={() => setVehicleType(v)}
-          >
-            <Text
-              style={vehicleType === v ? styles.choiceTextActive : styles.choiceText}
-            >
-              {v}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <ChoiceGroup
+        label="Type de véhicule"
+        options={VEHICLE_TYPES}
+        value={vehicleType}
+        onChange={setVehicleType}
+      />
 
-      <View style={styles.row}>
-        <Text style={styles.label}>Durée (jours) : {durationDays}</Text>
-        <View style={styles.seatButtons}>
-          <Pressable
-            onPress={() => setDurationDays((d) => Math.max(1, d - 1))}
-            style={styles.seatButton}
-          >
-            <Text>-</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setDurationDays((d) => Math.min(30, d + 1))}
-            style={styles.seatButton}
-          >
-            <Text>+</Text>
-          </Pressable>
-        </View>
-      </View>
+      <Stepper
+        label="Durée (jours)"
+        value={durationDays}
+        min={1}
+        max={30}
+        onChange={setDurationDays}
+      />
 
-      <Pressable style={styles.button} onPress={handleBook}>
-        <Text style={styles.buttonText}>Réserver</Text>
-      </Pressable>
+      <Text style={[text.caption, { color: colors.textMuted, marginTop: space[1] }]}>
+        Le véhicule est bloqué dès le versement de l'acompte. Le solde se règle à la
+        fin de la location, en Mobile Money, par carte ou en espèces au chauffeur.
+      </Text>
 
-      {status ? <Text style={styles.status}>{status}</Text> : null}
-    </View>
+      <Button label="Réserver" onPress={handleBook} loading={booking} />
+
+      {status ? (
+        <Text
+          style={[text.caption, { color: failed ? colors.danger : colors.success }]}
+        >
+          {status}
+        </Text>
+      ) : null}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12 },
-  label: { fontSize: 14, fontWeight: "600", color: "#0F172A", marginTop: 8 },
-  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  choice: {
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  choiceActive: { backgroundColor: "#0F172A", borderColor: "#0F172A" },
-  choiceText: { color: "#0F172A" },
-  choiceTextActive: { color: "white" },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  seatButtons: { flexDirection: "row", gap: 8 },
-  seatButton: {
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  button: {
-    backgroundColor: "#0F172A",
-    borderRadius: 8,
-    padding: 14,
-    alignItems: "center",
-    marginTop: 16,
-  },
-  buttonText: { color: "white", fontSize: 16, fontWeight: "600" },
-  status: { color: "#475569" },
-});

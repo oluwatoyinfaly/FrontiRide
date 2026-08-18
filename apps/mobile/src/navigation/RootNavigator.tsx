@@ -1,5 +1,6 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { navigationTheme, useTheme } from "../theme";
 import LoginScreen from "../screens/LoginScreen";
 import OtpScreen from "../screens/OtpScreen";
 import HomeScreen from "../screens/HomeScreen";
@@ -17,13 +18,28 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
+  const theme = useTheme();
+  const { colors, text } = theme;
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerTintColor: "#0F172A" }}>
+    <NavigationContainer theme={navigationTheme(theme)}>
+      <Stack.Navigator
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.surface },
+          headerTitleStyle: {
+            fontFamily: text.subheading.fontFamily,
+            fontSize: text.subheading.fontSize,
+            color: colors.text,
+          },
+          headerTintColor: colors.brand,
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: colors.ground },
+        }}
+      >
         <Stack.Screen
           name="Login"
           component={LoginScreen}
-          options={{ title: "FrontiRide" }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Otp"

@@ -8,6 +8,7 @@ Plateforme de mise en relation pour le transport frontalier (Volet 1) et la loca
 
 - [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md) — spécifications produit consolidées.
 - [`docs/plan-de-developpement.md`](docs/plan-de-developpement.md) — stack technique et phasage du MVP.
+- [`docs/charte-graphique.md`](docs/charte-graphique.md) — logo, couleurs, typographie, assets.
 
 ## Structure du repo
 
@@ -15,6 +16,8 @@ Plateforme de mise en relation pour le transport frontalier (Volet 1) et la loca
 apps/
   backend/   API Fastify + TypeScript + Prisma/PostgreSQL
   mobile/    App React Native (Expo) — client MVP
+brand/       Tracé maître du logo et lockups
+docs/        Spécifications et charte
 ```
 
 ## Démarrage rapide (Docker)

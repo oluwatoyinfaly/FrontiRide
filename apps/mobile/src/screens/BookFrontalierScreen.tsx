@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { View, Text, Switch, Pressable, StyleSheet } from "react-native";
+import { Switch, Text, View } from "react-native";
+import { Button } from "../components/Button";
+import { Card } from "../components/Card";
+import { Screen } from "../components/Screen";
+import { Stepper } from "../components/Stepper";
+import { useTheme } from "../theme";
 import { api } from "../api/client";
 
 interface Trancon {
@@ -11,124 +16,139 @@ interface Trancon {
   estimatedCustomsFeeFcfa: number;
 }
 
+const fcfa = (amount: number) => `${amount.toLocaleString("fr-FR")} FCFA`;
+
 // MVP : un seul trançon actif (Cotonou <-> Lomé), pas de sélection libre
-// d'itinéraire pour l'instant — voir docs/plan-de-developpement.md.
+// d'itinéraire — voir docs/plan-de-developpement.md.
 export default function BookFrontalierScreen() {
-  const [troncons, setTroncons] = useState<Trancon[]>([]);
-  const [selected, setSelected] = useState<Trancon | null>(null);
+  const { colors, space, text } = useTheme();
+  const [trancon, setTrancon] = useState<Trancon | null>(null);
   const [isRoundTrip, setIsRoundTrip] = useState(false);
   const [seats, setSeats] = useState(1);
+  const [booking, setBooking] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     api
       .listTroncons()
-      .then((data) => {
-        const list = data as unknown as Trancon[];
-        setTroncons(list);
-        setSelected(list[0] ?? null);
-      })
-      .catch(() => setStatus("Impossible de charger les trançons."));
+      .then((data) => setTrancon((data as unknown as Trancon[])[0] ?? null))
+      .catch(() => {
+        setFailed(true);
+        setStatus("Impossible de charger les trajets disponibles.");
+      });
   }, []);
 
-  const estimatedPrice = selected
-    ? (selected.priceFcfa + selected.estimatedCustomsFeeFcfa) *
-      (isRoundTrip ? 2 : 1)
-    : 0;
+  const multiplier = isRoundTrip ? 2 : 1;
+  const basePrice = trancon ? trancon.priceFcfa * multiplier : 0;
+  const customsFee = trancon ? trancon.estimatedCustomsFeeFcfa * multiplier : 0;
 
   async function handleBook() {
-    if (!selected) return;
-    setStatus("Réservation en cours...");
+    if (!trancon) return;
+    setBooking(true);
+    setFailed(false);
+    setStatus(null);
     try {
       await api.bookFrontalier({
-        tranconId: selected.id,
+        tranconId: trancon.id,
         departureAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         isRoundTrip,
         seats,
       });
-      setStatus("Réservation créée. Passez au paiement.");
+      setStatus("Réservation créée. Vous pouvez passer au paiement.");
     } catch {
-      setStatus("Erreur lors de la réservation.");
+      setFailed(true);
+      setStatus("La réservation n'a pas pu être enregistrée. Réessayez.");
+    } finally {
+      setBooking(false);
     }
   }
 
+  if (!trancon) {
+    return (
+      <Screen>
+        <Text style={[text.body, { color: failed ? colors.danger : colors.textMuted }]}>
+          {status ?? "Chargement des trajets…"}
+        </Text>
+      </Screen>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      {selected ? (
-        <>
-          <Text style={styles.route}>
-            {selected.originCity} → {selected.destinationCity}
+    <Screen scroll>
+      <View style={{ gap: space[1] }}>
+        <Text style={[text.title, { color: colors.text }]}>
+          {trancon.originCity} → {trancon.destinationCity}
+        </Text>
+        {trancon.borderPoint ? (
+          <Text style={[text.body, { color: colors.textMuted }]}>
+            Passage par {trancon.borderPoint}
           </Text>
-          {selected.borderPoint ? (
-            <Text style={styles.subtitle}>
-              Passage frontière : {selected.borderPoint}
-            </Text>
-          ) : null}
+        ) : null}
+      </View>
 
-          <View style={styles.row}>
-            <Text>Aller-retour</Text>
-            <Switch value={isRoundTrip} onValueChange={setIsRoundTrip} />
-          </View>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: space[4],
+        }}
+      >
+        <Text style={[text.label, { color: colors.textMuted }]}>Aller-retour</Text>
+        <Switch
+          value={isRoundTrip}
+          onValueChange={setIsRoundTrip}
+          trackColor={{ false: colors.border, true: colors.brand }}
+        />
+      </View>
 
-          <View style={styles.row}>
-            <Text>Places : {seats}</Text>
-            <View style={styles.seatButtons}>
-              <Pressable
-                onPress={() => setSeats((s) => Math.max(1, s - 1))}
-                style={styles.seatButton}
-              >
-                <Text>-</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setSeats((s) => Math.min(4, s + 1))}
-                style={styles.seatButton}
-              >
-                <Text>+</Text>
-              </Pressable>
-            </View>
-          </View>
+      <Stepper
+        label="Nombre de places"
+        value={seats}
+        min={1}
+        max={4}
+        onChange={setSeats}
+      />
 
-          <Text style={styles.price}>
-            Prix estimé : {estimatedPrice.toLocaleString("fr-FR")} FCFA
+      <Card>
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <Text style={[text.body, { color: colors.textMuted }]}>Trajet</Text>
+          <Text style={[text.body, { color: colors.text }]}>{fcfa(basePrice)}</Text>
+        </View>
+        <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+          <Text style={[text.body, { color: colors.textMuted }]}>
+            Frais de douane estimés
           </Text>
+          <Text style={[text.body, { color: colors.text }]}>{fcfa(customsFee)}</Text>
+        </View>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            paddingTop: space[3],
+            marginTop: space[1],
+          }}
+        >
+          <Text style={[text.subheading, { color: colors.text }]}>Prix estimé</Text>
+          <Text style={[text.amount, { color: colors.brand }]}>
+            {fcfa(basePrice + customsFee)}
+          </Text>
+        </View>
+      </Card>
 
-          <Pressable style={styles.button} onPress={handleBook}>
-            <Text style={styles.buttonText}>Réserver</Text>
-          </Pressable>
-        </>
-      ) : (
-        <Text>Chargement des trançons...</Text>
-      )}
+      <Button label="Réserver" onPress={handleBook} loading={booking} />
 
-      {status ? <Text style={styles.status}>{status}</Text> : null}
-    </View>
+      {status ? (
+        <Text
+          style={[text.caption, { color: failed ? colors.danger : colors.success }]}
+        >
+          {status}
+        </Text>
+      ) : null}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16 },
-  route: { fontSize: 20, fontWeight: "700", color: "#0F172A" },
-  subtitle: { fontSize: 14, color: "#64748B" },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  seatButtons: { flexDirection: "row", gap: 8 },
-  seatButton: {
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  price: { fontSize: 18, fontWeight: "600", color: "#0F172A" },
-  button: {
-    backgroundColor: "#0F172A",
-    borderRadius: 8,
-    padding: 14,
-    alignItems: "center",
-  },
-  buttonText: { color: "white", fontSize: 16, fontWeight: "600" },
-  status: { color: "#475569" },
-});
