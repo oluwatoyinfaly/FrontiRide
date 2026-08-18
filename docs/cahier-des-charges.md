@@ -93,12 +93,15 @@ Prestataires : **Fedapay** et/ou **Paystack** pour couvrir MoMo MTN/Moov (Bénin
 - Abonnement client récurrent (voir section 4).
 - Abonnement entreprise/ONG (forfait mensuel).
 
-## 7. Décisions à trancher avant le cadrage final
+## 7. Décisions produit (tranchées)
 
-Ces points nécessitent un arbitrage produit avant de figer le MVP :
+1. **Devise** : tout en **FCFA**, y compris l'abonnement client (Pass Pro 15 000 FCFA / Pass Entreprise 50 000 FCFA). Les montants EUR de la v1 sont abandonnés.
+2. **Pilote de lancement** : un seul corridor pour le MVP — **Cotonou ↔ Lomé** (y compris le passage par le point frontière Hilacondji). Le corridor Bénin↔Nigeria est reporté après validation du pilote.
+3. **Paiement** : **Fedapay** uniquement au démarrage (couvre MoMo MTN/Moov Bénin-Togo et cartes). Paystack sera ajouté à l'ouverture du corridor Nigeria.
+4. **Stack technique validée** : voir `plan-de-developpement.md` — React Native (mobile), Fastify + TypeScript (API), PostgreSQL (données).
 
-1. **Devise et prix de l'abonnement client** : FCFA (15k/50k) vs EUR (3€/10€/25€) — probablement les deux ne coexistent pas, à choisir selon la cible réelle (expatrié payant en EUR via carte vs client local en FCFA).
-2. **Qui valide le casier judiciaire** en pratique (délai, pièce justificative, coût) — impacte le temps d'onboarding chauffeur.
-3. **Assurance frontalière** : partenariat assureur à identifier avant le lancement commercial (mentionné comme "point clé" mais non détaillé).
-4. **Cadre juridique** : statut des chauffeurs (indépendants vs partenaires agences), TVA/fiscalité par pays, conformité RGPD vs lois locales sur la protection des données (Bénin/Togo/Nigeria).
-5. **Provider de paiement unique au départ** (Fedapay couvre Bénin/Togo ; Paystack couvre Nigeria/Ghana) — probablement les deux dès le MVP à cause du corridor Nigeria.
+### Points encore ouverts (non bloquants pour démarrer le dev)
+
+- Qui valide le casier judiciaire en pratique (délai, pièce justificative, coût).
+- Assurance frontalière : partenariat assureur à identifier avant le lancement commercial.
+- Cadre juridique : statut des chauffeurs, fiscalité, conformité protection des données Bénin/Togo.

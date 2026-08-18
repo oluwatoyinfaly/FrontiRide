@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "FrontiRide",
+    "slug": "frontiride",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0F172A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.frontiride.app"
+    },
+    "android": {
+      "package": "com.frontiride.app"
+    }
+  }
+}

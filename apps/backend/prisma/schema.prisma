@@ -1,0 +1,245 @@
+// FrontiRide — schema MVP (pilote Cotonou <-> Lomé)
+// Voir docs/cahier-des-charges.md et docs/plan-de-developpement.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CLIENT
+  DRIVER
+  ADMIN
+}
+
+enum DriverStatus {
+  PENDING_DOCUMENTS
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum VehicleType {
+  ECONOMIQUE
+  CONFORT
+  SUV
+  PREMIUM
+  MINIBUS
+}
+
+enum DocumentType {
+  CNI
+  PERMIS
+  CARTE_GRISE
+  ASSURANCE
+  VISITE_TECHNIQUE
+  CASIER_JUDICIAIRE
+  PHOTO_VEHICULE
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BookingType {
+  FRONTALIER
+  LOCATION_VILLE
+}
+
+enum BookingStatus {
+  DRAFT
+  AWAITING_PAYMENT
+  CONFIRMED
+  DRIVER_ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DISPUTED
+}
+
+enum PaymentMethod {
+  MOMO_MTN
+  MOMO_MOOV
+  CARD
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  ESCROW_HELD
+  RELEASED
+  REFUNDED
+  FAILED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  role          UserRole @default(CLIENT)
+  email         String   @unique
+  phone         String   @unique
+  fullName      String?
+  idDocumentUrl String?
+  photoUrl      String?
+  emailVerified Boolean  @default(false)
+  phoneVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  driverProfile Driver?
+  bookings      Booking[]
+  ratings       Rating[]
+  otpCodes      OtpCode[]
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  userId    String
+  channel   String // "email" | "sms"
+  code      String
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Driver {
+  id           String       @id @default(cuid())
+  userId       String       @unique
+  status       DriverStatus @default(PENDING_DOCUMENTS)
+  isOnline     Boolean      @default(false)
+  baseCity     String? // "Cotonou" | "Lomé"
+  offersFrontalier   Boolean @default(false)
+  offersLocationVille Boolean @default(false)
+  ratingAverage Float       @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user      User        @relation(fields: [userId], references: [id])
+  vehicles  Vehicle[]
+  documents Document[]
+  bookings  Booking[]
+  wallet    DriverWallet?
+}
+
+model Document {
+  id        String         @id @default(cuid())
+  driverId  String
+  type      DocumentType
+  fileUrl   String
+  status    DocumentStatus @default(PENDING)
+  reviewedAt DateTime?
+  createdAt DateTime       @default(now())
+
+  driver Driver @relation(fields: [driverId], references: [id])
+}
+
+model Vehicle {
+  id           String      @id @default(cuid())
+  driverId     String
+  type         VehicleType
+  brand        String?
+  model        String?
+  plateNumber  String
+  seats        Int
+  pricePerDay  Int? // FCFA, pour Location Ville
+  photoUrl     String?
+  createdAt    DateTime    @default(now())
+
+  driver   Driver    @relation(fields: [driverId], references: [id])
+  bookings Booking[]
+}
+
+// Grille tarifaire fixe pour le Volet 1 (Frontalier), gérée par l'admin.
+// Pilote MVP : un seul trançon Cotonou <-> Lomé (via Hilacondji).
+model Trancon {
+  id                String   @id @default(cuid())
+  originCity        String
+  destinationCity   String
+  borderPoint        String? // ex: "Hilacondji"
+  priceFcfa         Int
+  estimatedCustomsFeeFcfa Int @default(0)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  bookings Booking[]
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  type          BookingType
+  status        BookingStatus @default(DRAFT)
+  clientId      String
+  driverId      String?
+  vehicleId     String?
+
+  // Volet 1: Frontalier
+  tranconId     String?
+  departureAt   DateTime?
+  isRoundTrip   Boolean       @default(false)
+  seats         Int           @default(1)
+
+  // Volet 2: Location Ville
+  city          String?
+  vehicleType   VehicleType?
+  startAt       DateTime?
+  durationDays  Int?
+
+  estimatedPriceFcfa Int?
+  finalPriceFcfa     Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client  User     @relation(fields: [clientId], references: [id])
+  driver  Driver?  @relation(fields: [driverId], references: [id])
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
+  trancon Trancon? @relation(fields: [tranconId], references: [id])
+  payment Payment?
+  rating  Rating?
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  bookingId       String        @unique
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  amountFcfa      Int
+  advanceFcfa     Int?          // acompte 30% pour Location Ville
+  fedapayReference String?
+  escrowReleaseAt DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+}
+
+model DriverWallet {
+  id              String   @id @default(cuid())
+  driverId        String   @unique
+  balanceFcfa     Int      @default(0)
+  commissionRate  Float    @default(0.12) // 12% par défaut, modulable par l'admin
+  updatedAt       DateTime @updatedAt
+
+  driver Driver @relation(fields: [driverId], references: [id])
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  bookingId String   @unique
+  clientId  String
+  score     Int // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+  client  User    @relation(fields: [clientId], references: [id])
+}

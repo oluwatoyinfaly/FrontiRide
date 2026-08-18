@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+
+# Expo / React Native
+.expo/
+.expo-shared/
+*.log
+
+# Prisma
+apps/backend/prisma/dev.db

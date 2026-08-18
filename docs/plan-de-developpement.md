@@ -2,31 +2,32 @@
 
 Référence produit : `cahier-des-charges.md`. Objectif : découper la vision complète (v1.4) en un MVP livrable rapidement, puis en itérations.
 
-## 1. Stack technique proposée
+## 1. Stack technique (validée)
 
-| Brique | Choix proposé | Pourquoi |
+| Brique | Choix retenu | Pourquoi |
 |---|---|---|
-| App mobile (Client + Chauffeur) | **Flutter** | Un seul code pour Android/iOS, équipe réduite, bon support Google Maps + notifications push |
-| Back-office Admin | **Next.js (React) + Tailwind** | Développement rapide, SSR pour dashboards, réutilise les devs web/mobile (même écosystème JS que le backend si Node) |
-| API Backend | **NestJS (Node/TypeScript)** ou Django REST (Python) | API structurée, modules clairs (auth, courses, paiement, admin), bon écosystème pour webhooks paiement |
-| Base de données | **PostgreSQL + PostGIS** | Requêtes géospatiales (trançons, distances, matching chauffeur/course) |
-| Paiement | **Fedapay** (MoMo MTN/Moov Bénin-Togo) + **Paystack** (Nigeria/cartes) | Couverture des 3 pays de lancement |
-| Cartographie | **Google Maps API** (Directions, Distance Matrix, Places) | Suivi GPS, estimation trajets, points frontière |
-| Notifications | **Firebase Cloud Messaging** (push) + provider SMS local (ex. Twilio ou agrégateur régional) + email (SendGrid/Postmark) | |
+| App mobile (Client + Chauffeur) | **React Native (Expo)** | Un seul code pour Android/iOS, écosystème JS partagé avec le backend |
+| Back-office Admin | **React (Next.js) + Tailwind** — après le MVP, ou API-only avec Postman/Retool en attendant | Réutilise les mêmes devs/typescript que mobile et API |
+| API Backend | **Fastify + TypeScript** | Léger, rapide, bon support plugins/validation (JSON Schema natif), simple à monter en équipe réduite |
+| ORM / Base de données | **PostgreSQL + Prisma** (extension PostGIS activable si besoin géospatial avancé) | Migrations typées, requêtes géospatiales possibles |
+| Paiement | **Fedapay** uniquement au MVP (MoMo MTN/Moov, cartes) | Suffisant pour le corridor Bénin-Togo du pilote ; Paystack ajouté à l'ouverture du Nigeria |
+| Cartographie | **Google Maps API** (Directions, Distance Matrix, Places) | Suivi GPS, estimation trajets, point frontière Hilacondji |
+| Notifications | **Firebase Cloud Messaging** (push) + provider SMS local + email (SendGrid/Postmark) | |
 | Stockage documents (pièces d'identité, permis) | **S3-compatible avec chiffrement AES-256** | Conformité sécurité |
-| Infra / CI-CD | Conteneurs Docker, déploiement cloud (ex. Render/Fly.io/AWS selon budget), pipeline CI (tests + lint + build) | |
+| Infra / CI-CD | Conteneurs Docker, déploiement cloud, pipeline CI (tests + lint + build) | |
 
 ## 2. Périmètre du MVP (V1) — ce qu'on construit d'abord
 
 Le cahier des charges complet est trop large pour un premier lancement. Le MVP retient le strict nécessaire pour valider le marché sur 1-2 corridors :
 
 **Inclus dans le MVP :**
-- Volet 1 (Frontalier) **et** Volet 2 (Location Ville) dès le départ — c'est le cœur de la différenciation, pas juste un des deux.
+- Un seul corridor pilote : **Cotonou ↔ Lomé**, avec passage par le point frontière **Hilacondji**.
+- Volet 1 (Frontalier) **et** Volet 2 (Location Ville, à Cotonou et Lomé) dès le départ — c'est le cœur de la différenciation.
 - Auth client + chauffeur (email + téléphone + OTP).
 - Profil + upload documents chauffeur, validation manuelle admin (pas d'automatisation IA au départ).
-- Réservation Frontalier : ville→ville ou point frontière, date/heure, 1-4 places, estimation prix par trançon fixe (pas de calcul dynamique douane au 1er jour — grille admin).
-- Réservation Location Ville : ville, type véhicule, durée (journée uniquement au MVP, pas "à l'heure"), avance 30% + solde.
-- Paiement MoMo + espèces (carte bancaire peut suivre en V1.1).
+- Réservation Frontalier : Cotonou↔Lomé ou point frontière Hilacondji, date/heure, 1-4 places, estimation prix par trançon fixe (grille admin, pas de calcul dynamique douane au 1er jour).
+- Réservation Location Ville : Cotonou ou Lomé, type véhicule, durée (journée uniquement au MVP, pas "à l'heure"), avance 30% + solde.
+- Paiement **Fedapay** : MoMo MTN/Moov + espèces au chauffeur (carte bancaire peut suivre en V1.1).
 - Paiement séquestre simple (déblocage manuel ou règle 24h automatique).
 - Suivi GPS temps réel (position chauffeur uniquement, pas ETA prédictif avancé).
 - Notation post-course (chauffeur + véhicule).
@@ -34,6 +35,7 @@ Le cahier des charges complet est trop large pour un premier lancement. Le MVP r
 - Notifications push + SMS (confirmation, rappel).
 
 **Explicitement repoussé après le MVP (V1.1+) :**
+- Corridor Bénin↔Nigeria (Sèmè-Kraké/Owodé/Igolo ↔ Lagos) et intégration Paystack.
 - Programme FrontiPoints, parrainage, palier VIP.
 - Programme Chauffeur Elite (bonus volume/ponctualité).
 - Abonnements client (Pass Pro/Entreprise) et facturation entreprise consolidée.
