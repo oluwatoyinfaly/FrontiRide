@@ -1,6 +1,6 @@
 // URL du backend Fastify. En dev, pointe vers la machine locale (adapter
 // selon l'émulateur : 10.0.2.2 pour Android Studio, localhost pour iOS Simulator).
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001";
 
 let authToken: string | null = null;
 

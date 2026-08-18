@@ -31,9 +31,11 @@ Puis, dans un autre terminal, applique le seed (trançon pilote Cotonou <-> Lom�
 docker compose exec backend npm run prisma:seed
 ```
 
-L'API est disponible sur `http://localhost:3000` (`GET /health` pour vérifier). Le dossier `apps/backend/src` est monté en volume : les changements rechargent le serveur automatiquement (`tsx watch`).
+L'API est disponible sur `http://localhost:3001` (`GET /health` pour vérifier) — le port hôte est volontairement différent de 3000 pour éviter les conflits avec d'autres serveurs locaux ; change-le via `BACKEND_PORT` (ex. `BACKEND_PORT=4000 docker compose up`) si 3001 est aussi pris. Le dossier `apps/backend/src` est monté en volume : les changements rechargent le serveur automatiquement (`tsx watch`).
 
 Pour utiliser une clé Fedapay sandbox, crée un fichier `.env` à la racine avec `FEDAPAY_SECRET_KEY=...` (lu automatiquement par Docker Compose) avant de lancer `docker compose up`.
+
+> Si `docker compose up` échoue avec `ports are not available` / `bind: ... already in use`, c'est qu'un autre programme occupe déjà le port indiqué (5432 ou 3001). Sous Windows : `netstat -ano | findstr :3001` (ou `:5432`) pour trouver le processus, ou change le port dans `docker-compose.yml` / via `BACKEND_PORT`.
 
 ## Démarrage manuel (sans Docker)
 
@@ -56,4 +58,4 @@ npm install
 npm start
 ```
 
-L'app pointe par défaut vers `http://localhost:3000` (voir `EXPO_PUBLIC_API_URL` dans `src/api/client.ts` pour l'adapter à un émulateur Android/iOS).
+L'app pointe par défaut vers `http://localhost:3001` (le port du backend en Docker, voir ci-dessus) — adapter via `EXPO_PUBLIC_API_URL` dans `src/api/client.ts`, notamment pour un émulateur Android (`10.0.2.2`) ou iOS.
