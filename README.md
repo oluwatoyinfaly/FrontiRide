@@ -9,56 +9,73 @@ Plateforme de mise en relation pour le transport frontalier (Volet 1) et la loca
 - [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md) — spécifications produit consolidées.
 - [`docs/plan-de-developpement.md`](docs/plan-de-developpement.md) — stack technique et phasage du MVP.
 - [`docs/charte-graphique.md`](docs/charte-graphique.md) — logo, couleurs, typographie, assets.
+- [`docs/builds-eas.md`](docs/builds-eas.md) — builds EAS, labels de PR, intégration continue.
 
 ## Structure du repo
 
 ```
 apps/
   backend/   API Fastify + TypeScript + Prisma/PostgreSQL
-  mobile/    App React Native (Expo) — client MVP
+  mobile/    App React Native (Expo) — client et chauffeur, FR/EN
+  admin/     Back-office React + Vite
 brand/       Tracé maître du logo et lockups
-docs/        Spécifications et charte
+docs/        Spécifications, charte et procédures
 ```
 
-## Démarrage rapide (Docker)
+## Démarrage rapide
 
-Lance PostgreSQL + le backend en une commande :
+### 1. Backend et base de données
 
 ```bash
 docker compose up --build
+docker compose exec backend npm run prisma:seed   # dans un autre terminal
 ```
 
-Puis, dans un autre terminal, applique le seed (trançon pilote Cotonou <-> Lomé) :
+L'API écoute sur `http://localhost:3001` (`GET /health` pour vérifier). Le port hôte évite le 3000 souvent déjà pris ; change-le avec `BACKEND_PORT` si besoin.
+
+Le seed crée le corridor Cotonou ↔ Lomé, quatre chauffeurs (deux validés, deux à contrôler), un client et cinq réservations couvrant chaque état — de quoi voir le back-office rempli tout de suite.
+
+| Compte de démonstration | Rôle |
+|---|---|
+| `admin@frontiride.com` | Administrateur |
+| `client@example.com` | Client |
+| `kofi.adjovi@example.com` | Chauffeur validé |
+
+L'authentification se fait par code OTP double (email + SMS). **Hors production, l'API renvoie les codes dans sa réponse** et les interfaces les préremplissent : le parcours est donc testable sans passerelle SMS.
+
+### 2. Back-office administrateur
 
 ```bash
-docker compose exec backend npm run prisma:seed
+cd apps/admin
+cp .env.example .env
+npm install && npm run dev        # http://localhost:5173
 ```
 
-L'API est disponible sur `http://localhost:3001` (`GET /health` pour vérifier) — le port hôte est volontairement différent de 3000 pour éviter les conflits avec d'autres serveurs locaux ; change-le via `BACKEND_PORT` (ex. `BACKEND_PORT=4000 docker compose up`) si 3001 est aussi pris. Le dossier `apps/backend/src` est monté en volume : les changements rechargent le serveur automatiquement (`tsx watch`).
+### 3. Application mobile
 
-Pour utiliser une clé Fedapay sandbox, crée un fichier `.env` à la racine avec `FEDAPAY_SECRET_KEY=...` (lu automatiquement par Docker Compose) avant de lancer `docker compose up`.
+```bash
+cd apps/mobile
+npm install && npm start
+```
 
-> Si `docker compose up` échoue avec `ports are not available` / `bind: ... already in use`, c'est qu'un autre programme occupe déjà le port indiqué (5432 ou 3001). Sous Windows : `netstat -ano | findstr :3001` (ou `:5432`) pour trouver le processus, ou change le port dans `docker-compose.yml` / via `BACKEND_PORT`.
+L'app vise automatiquement la machine qui sert Metro sur le port 3001 ; `EXPO_PUBLIC_API_URL` permet de forcer une autre adresse.
 
-## Démarrage manuel (sans Docker)
+## Vérifications
 
-### Backend
+```bash
+npm run typecheck   # backend + mobile + admin
+npm run smoke       # 23 assertions de bout en bout sur l'API
+```
+
+Le smoke test suppose une base fraîchement migrée et seedée — il consomme les données de démonstration.
+
+## Démarrage manuel du backend (sans Docker)
 
 ```bash
 cd apps/backend
 cp .env.example .env   # renseigner DATABASE_URL et FEDAPAY_SECRET_KEY
 npm install
 npm run prisma:migrate
-npm run prisma:seed     # crée le trançon pilote Cotonou <-> Lomé
+npm run prisma:seed
 npm run dev
 ```
-
-### Mobile
-
-```bash
-cd apps/mobile
-npm install
-npm start
-```
-
-L'app pointe par défaut vers `http://localhost:3001` (le port du backend en Docker, voir ci-dessus) — adapter via `EXPO_PUBLIC_API_URL` dans `src/api/client.ts`, notamment pour un émulateur Android (`10.0.2.2`) ou iOS.
