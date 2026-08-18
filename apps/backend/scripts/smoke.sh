@@ -112,5 +112,30 @@ check "note enregistrée" "$(curl -s -X POST $API/bookings/$RIDE/rating -H "Auth
 check "double notation refusée" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/bookings/$RIDE/rating \
   -H "Authorization: Bearer $CTOKEN" -H 'Content-Type: application/json' -d '{"score":1}')" "409"
 
+
+echo "== Régressions corrigées =="
+# Bug 1 : après une première location, le véhicule redevenait irréservable —
+# le test de chevauchement ne comparait que les dates de début.
+V=$(curl -s "$API/vehicles?city=Cotonou" | j 0.id)
+D1=$(date -u -d '+40 days' +%Y-%m-%dT%H:%M:%SZ)
+D2=$(date -u -d '+80 days' +%Y-%m-%dT%H:%M:%SZ)
+curl -s -X POST $API/bookings/location-ville -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d "{\"vehicleId\":\"$V\",\"startAt\":\"$D1\",\"durationDays\":2}" > /dev/null
+code=$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/bookings/location-ville \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"vehicleId\":\"$V\",\"startAt\":\"$D2\",\"durationDays\":2}")
+check "période disjointe acceptée" "$code" "201"
+
+# Bug 2 : la référence est courte, donc les collisions arrivent ; la création
+# doit réessayer au lieu de remonter une erreur serveur.
+fails=0
+for i in $(seq 1 25); do
+  c=$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/bookings/frontalier \
+    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+    -d "{\"tranconId\":\"trancon-cotonou-lome\",\"departureAt\":\"$(date -u -d '+9 days' +%Y-%m-%dT%H:%M:%SZ)\",\"seats\":1}")
+  [ "$c" = "201" ] || fails=$((fails+1))
+done
+check "25 réservations d'affilée sans échec" "$fails" "0"
+
 echo; [ $fail = 0 ] && echo "TOUS LES TESTS PASSENT" || echo "DES TESTS ÉCHOUENT"
 exit $fail

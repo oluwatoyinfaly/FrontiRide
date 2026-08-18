@@ -135,6 +135,7 @@ CREATE TABLE "Booking" (
     "city" TEXT,
     "vehicleType" "VehicleType",
     "startAt" TIMESTAMP(3),
+    "endAt" TIMESTAMP(3),
     "durationDays" INTEGER,
     "estimatedPriceFcfa" INTEGER,
     "finalPriceFcfa" INTEGER,

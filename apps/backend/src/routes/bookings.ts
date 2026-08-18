@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { advanceFor, frontalierPrice, locationPrice } from "../lib/pricing.js";
-import { bookingReference } from "../lib/reference.js";
+import { createBookingWithReference } from "../lib/reference.js";
 
 const VEHICLE_TYPES = [
   "ECONOMIQUE",
@@ -111,20 +111,24 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
 
     const price = frontalierPrice(trancon, { isRoundTrip: body.isRoundTrip });
 
-    const booking = await fastify.prisma.booking.create({
-      data: {
-        reference: bookingReference("FRONTALIER"),
-        type: "FRONTALIER",
-        status: "AWAITING_PAYMENT",
-        clientId: request.user.userId,
-        tranconId: trancon.id,
-        departureAt: body.departureAt,
-        isRoundTrip: body.isRoundTrip,
-        seats: body.seats,
-        estimatedPriceFcfa: price.totalFcfa,
-      },
-      include: bookingInclude,
-    });
+    const booking = await createBookingWithReference(
+      (reference) =>
+        fastify.prisma.booking.create({
+          data: {
+            reference,
+            type: "FRONTALIER",
+            status: "AWAITING_PAYMENT",
+            clientId: request.user.userId,
+            tranconId: trancon.id,
+            departureAt: body.departureAt,
+            isRoundTrip: body.isRoundTrip,
+            seats: body.seats,
+            estimatedPriceFcfa: price.totalFcfa,
+          },
+          include: bookingInclude,
+        }),
+      "FRONTALIER"
+    );
 
     return reply.code(201).send({ booking, price });
   });
@@ -144,15 +148,18 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: "La date de début est passée" });
     }
 
-    const end = new Date(body.startAt);
-    end.setDate(end.getDate() + body.durationDays);
+    const endAt = new Date(body.startAt);
+    endAt.setDate(endAt.getDate() + body.durationDays);
 
-    // Un véhicule déjà loué sur la période ne peut pas être réservé deux fois.
+    // Deux périodes se chevauchent si chacune commence avant que l'autre ne
+    // finisse. Tester la seule date de début rendrait le véhicule
+    // définitivement irréservable après sa première location.
     const clash = await fastify.prisma.booking.findFirst({
       where: {
         vehicleId: vehicle.id,
         status: { in: ["CONFIRMED", "DRIVER_ASSIGNED", "IN_PROGRESS"] },
-        startAt: { lt: end },
+        startAt: { lt: endAt },
+        endAt: { gt: body.startAt },
       },
     });
     if (clash) {
@@ -163,22 +170,27 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
 
     const price = locationPrice(vehicle, { durationDays: body.durationDays });
 
-    const booking = await fastify.prisma.booking.create({
-      data: {
-        reference: bookingReference("LOCATION_VILLE"),
-        type: "LOCATION_VILLE",
-        status: "AWAITING_PAYMENT",
-        clientId: request.user.userId,
-        vehicleId: vehicle.id,
-        driverId: vehicle.driverId,
-        city: vehicle.driver.baseCity,
-        vehicleType: vehicle.type,
-        startAt: body.startAt,
-        durationDays: body.durationDays,
-        estimatedPriceFcfa: price.totalFcfa,
-      },
-      include: bookingInclude,
-    });
+    const booking = await createBookingWithReference(
+      (reference) =>
+        fastify.prisma.booking.create({
+          data: {
+            reference,
+            type: "LOCATION_VILLE",
+            status: "AWAITING_PAYMENT",
+            clientId: request.user.userId,
+            vehicleId: vehicle.id,
+            driverId: vehicle.driverId,
+            city: vehicle.driver.baseCity,
+            vehicleType: vehicle.type,
+            startAt: body.startAt,
+            endAt,
+            durationDays: body.durationDays,
+            estimatedPriceFcfa: price.totalFcfa,
+          },
+          include: bookingInclude,
+        }),
+      "LOCATION_VILLE"
+    );
 
     return reply
       .code(201)

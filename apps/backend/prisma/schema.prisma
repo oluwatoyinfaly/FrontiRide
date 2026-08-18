@@ -199,6 +199,9 @@ model Booking {
   city         String?
   vehicleType  VehicleType?
   startAt      DateTime?
+  /// Fin de la location, calculée à la réservation. Stockée plutôt que
+  /// recalculée : c'est elle qui permet de tester le chevauchement en base.
+  endAt        DateTime?
   durationDays Int?
 
   estimatedPriceFcfa Int?
