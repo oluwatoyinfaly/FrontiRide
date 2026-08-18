@@ -10,3 +10,8 @@ dist/
 
 # Prisma
 apps/backend/prisma/dev.db
+
+# Projets natifs régénérés par `expo prebuild` à chaque build EAS.
+# Le flux managé (CNG) ne les versionne pas : app.json est la source de vérité.
+apps/mobile/android/
+apps/mobile/ios/

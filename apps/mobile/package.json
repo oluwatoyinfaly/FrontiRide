@@ -2,12 +2,13 @@
   "name": "@frontiride/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
-    "start": "expo start",
     "android": "expo start --android",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "ios": "expo start --ios",
-    "check:i18n": "node scripts/check-i18n.mjs"
+    "prebuild": "expo prebuild --clean",
+    "start": "expo start"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
@@ -22,6 +23,7 @@
     "expo-localization": "~15.0.3",
     "expo-secure-store": "~13.0.2",
     "expo-status-bar": "~1.12.1",
+    "expo-system-ui": "~3.0.7",
     "expo-web-browser": "~13.0.3",
     "i18n-js": "^4.4.3",
     "react": "18.2.0",
