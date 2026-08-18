@@ -58,7 +58,7 @@ jobs:
         run: API=http://localhost:3000 bash scripts/smoke.sh
 
   mobile:
-    name: Mobile — types
+    name: Mobile — types et traductions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +69,8 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit -p tsconfig.json
         working-directory: apps/mobile
+      - name: Clés de traduction
+        run: npm run check:i18n --workspace apps/mobile
 
   admin:
     name: Admin — build
