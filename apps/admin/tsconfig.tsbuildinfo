@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/api.ts","./src/main.tsx","./src/vite-env.d.ts","./src/components/ui.tsx","./src/pages/Bookings.tsx","./src/pages/Dashboard.tsx","./src/pages/Drivers.tsx","./src/pages/Login.tsx","./src/pages/Payments.tsx","./src/pages/Troncons.tsx","./src/pages/Withdrawals.tsx","./vite.config.ts"],"version":"5.9.3"}

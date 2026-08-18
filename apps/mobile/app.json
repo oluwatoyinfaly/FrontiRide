@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "FrontiRide",
+    "slug": "frontiride",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "primaryColor": "#0B6E52",
+    "backgroundColor": "#F2F5F3",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#083F30"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#0B6E52"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.frontiride.app"
+    },
+    "android": {
+      "package": "com.frontiride.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#083F30",
+      "barStyle": "light-content"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "36e54071-32b1-41ed-881e-08ba1ebe308b"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/36e54071-32b1-41ed-881e-08ba1ebe308b"
+    }
+  }
+}

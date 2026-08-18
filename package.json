@@ -1,0 +1,16 @@
+{
+  "name": "frontiride",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace apps/backend",
+    "dev:admin": "npm run dev --workspace apps/admin",
+    "dev:mobile": "npm run start --workspace apps/mobile",
+    "build:backend": "npm run build --workspace apps/backend",
+    "build:admin": "npm run build --workspace apps/admin",
+    "typecheck": "npx tsc --noEmit -p apps/backend/tsconfig.json && npx tsc --noEmit -p apps/mobile/tsconfig.json && npm run typecheck --workspace apps/admin",
+    "smoke": "npm run smoke --workspace apps/backend"
+  }
+}
