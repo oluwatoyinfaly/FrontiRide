@@ -8,10 +8,18 @@ import {
   type ReactNode,
 } from "react";
 import * as SecureStore from "expo-secure-store";
-import { api, setAuthToken } from "../api/client";
+import { ApiError, api, setAuthToken } from "../api/client";
 import type { User } from "../api/types";
 
 const TOKEN_KEY = "frontiride.token";
+const USER_KEY = "frontiride.user";
+
+/**
+ * Le démarrage ne doit jamais dépendre du réseau : un téléphone qui ne joint
+ * pas l'API laisserait sinon l'app sur son écran de chargement. On rouvre donc
+ * la session sur ce qui est stocké, et on ne rafraîchit qu'ensuite, en fond.
+ */
+const RESTORE_TIMEOUT_MS = 8000;
 
 interface SessionValue {
   user: User | null;
@@ -33,20 +41,42 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     (async () => {
+      let token: string | null = null;
+
       try {
-        const token = await SecureStore.getItemAsync(TOKEN_KEY);
-        if (token) {
-          setAuthToken(token);
-          const me = await api.me();
-          if (!cancelled) setUser(me);
+        token = await SecureStore.getItemAsync(TOKEN_KEY);
+        if (!token) return;
+
+        setAuthToken(token);
+
+        const cached = await SecureStore.getItemAsync(USER_KEY);
+        if (cached && !cancelled) {
+          setUser(JSON.parse(cached) as User);
         }
       } catch {
-        // Jeton expiré ou serveur injoignable : on repart déconnecté plutôt
-        // que de bloquer l'app sur un écran de chargement.
+        // Stockage illisible : on repart déconnecté.
         setAuthToken(null);
-        await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+        return;
       } finally {
         if (!cancelled) setRestoring(false);
+      }
+
+      // À partir d'ici l'app est déjà affichée : ce rafraîchissement corrige
+      // en silence un profil modifié, ou déconnecte si le jeton a expiré.
+      try {
+        const me = await api.me(RESTORE_TIMEOUT_MS);
+        if (cancelled) return;
+        setUser(me);
+        await SecureStore.setItemAsync(USER_KEY, JSON.stringify(me));
+      } catch (err) {
+        // Serveur injoignable : on garde la session en cache. Seul un jeton
+        // refusé justifie de déconnecter.
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          setAuthToken(null);
+          if (!cancelled) setUser(null);
+          await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+          await SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
+        }
       }
     })();
 
@@ -59,17 +89,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setAuthToken(token);
     setUser(nextUser);
     await SecureStore.setItemAsync(TOKEN_KEY, token);
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(nextUser));
   }, []);
 
   const signOut = useCallback(async () => {
     setAuthToken(null);
     setUser(null);
     await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+    await SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
   }, []);
 
   const refresh = useCallback(async () => {
     try {
-      setUser(await api.me());
+      const me = await api.me();
+      setUser(me);
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(me));
     } catch {
       // Un rafraîchissement raté ne doit pas déconnecter l'utilisateur.
     }

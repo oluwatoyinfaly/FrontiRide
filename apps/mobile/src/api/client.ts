@@ -43,37 +43,57 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let response: Response;
+/**
+ * Sans délai maximal, une adresse filtrée par un pare-feu ne renvoie jamais
+ * rien : `fetch` reste en attente et l'écran appelant tourne indéfiniment.
+ * On préfère une erreur réseau franche, que les écrans savent afficher.
+ */
+const TIMEOUT_MS = 12000;
+
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs: number = TIMEOUT_MS
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-        ...init.headers,
-      },
-    });
-  } catch {
-    // Panne réseau : status 0 permet aux écrans d'afficher le bon message.
-    throw new ApiError(0, "network");
+    let response: Response;
+
+    try {
+      response = await fetch(`${API_URL}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          ...init.headers,
+        },
+      });
+    } catch {
+      // Panne réseau ou délai dépassé : status 0 permet aux écrans
+      // d'afficher le bon message.
+      throw new ApiError(0, "network");
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new ApiError(
+        response.status,
+        (payload as { error?: string } | null)?.error ?? response.statusText
+      );
+    }
+
+    return payload as T;
+  } finally {
+    clearTimeout(timer);
   }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  const payload = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      (payload as { error?: string } | null)?.error ?? response.statusText
-    );
-  }
-
-  return payload as T;
 }
 
 const post = <T>(path: string, body?: unknown) =>
@@ -106,7 +126,8 @@ export const api = {
       smsCode,
     }),
 
-  me: () => request<User>("/me"),
+  /** `timeoutMs` sert au démarrage : on n'y attend pas 12 s avant la connexion. */
+  me: (timeoutMs?: number) => request<User>("/me", {}, timeoutMs),
 
   updateProfile: (input: Partial<Pick<User, "fullName" | "locale">>) =>
     patch<User>("/me", input),
