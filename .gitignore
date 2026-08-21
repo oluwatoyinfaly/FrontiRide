@@ -15,3 +15,6 @@ apps/backend/prisma/dev.db
 # Le flux managé (CNG) ne les versionne pas : app.json est la source de vérité.
 apps/mobile/android/
 apps/mobile/ios/
+
+# Sortie de `expo export`
+apps/mobile/dist/

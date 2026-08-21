@@ -56,7 +56,6 @@ export const en: Dictionary = {
   home: {
     greeting: "Hello %{name}",
     greetingAnonymous: "Hello",
-    question: "Where are you going?",
     frontalier: "Cross-border ride",
     frontalierSubtitle: "Cotonou ↔ Lomé, via the Hilacondji crossing",
     location: "Car with driver",
@@ -65,6 +64,11 @@ export const en: Dictionary = {
     trustBody:
       "ID, licence, registration, insurance and criminal record all checked by our team before any ride.",
     activeTrip: "Ride in progress",
+    searchCta: "Where are you going?",
+    searchHint: "Pick a route or a vehicle",
+    services: "Our services",
+    frequentRoutes: "Frequent routes",
+    fromPrice: "from %{amount}",
   },
 
   booking: {

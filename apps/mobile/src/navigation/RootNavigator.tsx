@@ -60,7 +60,7 @@ function HomeNavigator() {
       <HomeStack.Screen
         name="Home"
         component={HomeScreen}
-        options={{ title: "FrontiRide" }}
+        options={{ headerShown: false }}
       />
       <HomeStack.Screen
         name="BookFrontalier"
@@ -161,15 +161,19 @@ function ProfileNavigator() {
   );
 }
 
-const TAB_ICONS: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
-  HomeTab: "home",
-  TripsTab: "receipt",
-  DriverTab: "car-sport",
-  ProfileTab: "person",
+/** Icône pleine à l'état actif, contour au repos — la convention du genre. */
+const TAB_ICONS: Record<
+  keyof TabParamList,
+  [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]
+> = {
+  HomeTab: ["home", "home-outline"],
+  TripsTab: ["receipt", "receipt-outline"],
+  DriverTab: ["car-sport", "car-sport-outline"],
+  ProfileTab: ["person-circle", "person-circle-outline"],
 };
 
 function AppTabs() {
-  const { colors, text } = useTheme();
+  const { colors, radius, text, isDark } = useTheme();
   const { t } = useI18n();
 
   return (
@@ -180,12 +184,39 @@ function AppTabs() {
         tabBarInactiveTintColor: colors.textFaint,
         tabBarStyle: {
           backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          borderTopWidth: 0,
+          height: 66,
+          paddingTop: 8,
+          paddingBottom: 10,
+          // La barre se détache du contenu par son ombre plutôt que par un
+          // filet, plus proche des apps de la catégorie.
+          shadowColor: "#000",
+          shadowOpacity: isDark ? 0.35 : 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -3 },
+          elevation: 12,
         },
-        tabBarLabelStyle: { fontFamily: text.label.fontFamily, fontSize: 11 },
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />
-        ),
+        tabBarLabelStyle: {
+          fontFamily: text.label.fontFamily,
+          fontSize: 11,
+          marginTop: 2,
+        },
+        tabBarIcon: ({ color, focused }) => {
+          const [filled, outline] = TAB_ICONS[route.name];
+          return (
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 4,
+                borderRadius: radius.pill,
+                // Pastille de fond sous l'onglet actif : repère immédiat.
+                backgroundColor: focused ? `${colors.brand}1A` : "transparent",
+              }}
+            >
+              <Ionicons name={focused ? filled : outline} size={22} color={color} />
+            </View>
+          );
+        },
       })}
     >
       <Tabs.Screen

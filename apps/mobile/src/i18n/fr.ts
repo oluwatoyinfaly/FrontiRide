@@ -49,7 +49,6 @@ export const fr = {
   home: {
     greeting: "Bonjour %{name}",
     greetingAnonymous: "Bonjour",
-    question: "Où allez-vous ?",
     frontalier: "Transport Frontalier",
     frontalierSubtitle: "Cotonou ↔ Lomé, via le poste d'Hilacondji",
     location: "Location avec Chauffeur",
@@ -58,6 +57,11 @@ export const fr = {
     trustBody:
       "Pièce d'identité, permis, carte grise, assurance et casier judiciaire contrôlés par notre équipe avant toute course.",
     activeTrip: "Course en cours",
+    searchCta: "Où allez-vous ?",
+    searchHint: "Choisissez votre trajet ou votre véhicule",
+    services: "Nos services",
+    frequentRoutes: "Trajets fréquents",
+    fromPrice: "dès %{amount}",
   },
 
   booking: {
