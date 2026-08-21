@@ -50,7 +50,7 @@ Sous PowerShell, les variables se passent autrement :
 $env:BACKEND_PORT=4000; docker compose up --build
 ```
 
-Le seed crée le corridor Cotonou ↔ Lomé, quatre chauffeurs (deux validés, deux à contrôler), un client et cinq réservations couvrant chaque état — de quoi voir le back-office rempli dès le premier démarrage. Il est idempotent : le relancer ne duplique rien.
+Le seed remplit la base de quoi juger l'application dès le premier démarrage : 5 trançons du corridor, 10 chauffeurs couvrant les cinq états d'un dossier, 12 véhicules répartis sur les deux villes et les cinq gammes, 13 courses et 3 demandes de retrait. Il est idempotent : le relancer ne duplique rien.
 
 | Compte de démonstration | Rôle | Ce qu'on y voit |
 |---|---|---|
