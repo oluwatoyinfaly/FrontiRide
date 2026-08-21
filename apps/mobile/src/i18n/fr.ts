@@ -176,7 +176,12 @@ export const fr = {
     becomeCta: "Créer mon dossier",
     becomeReversible:
       "Sans engagement : tant qu'aucune course n'est rattachée au dossier, il se retire en un geste.",
+    applicationTitle: "Ma candidature",
     cancelRegistration: "Annuler ma candidature",
+    cancelLocked:
+      "%{count} course(s) sont rattachées à ce profil : la candidature ne peut plus être retirée. Passez hors ligne pour ne plus recevoir de courses.",
+    history: "Historique · %{count} course(s)",
+    earned: "Gain net",
     cancelTitle: "Annuler la candidature ?",
     cancelBody:
       "Le dossier et les pièces déjà envoyées seront supprimés. Le compte redevient un compte client.",

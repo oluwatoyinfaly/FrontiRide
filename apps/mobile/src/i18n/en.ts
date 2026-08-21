@@ -183,7 +183,12 @@ export const en: Dictionary = {
     becomeCta: "Start my application",
     becomeReversible:
       "No commitment: as long as no ride is attached to it, the application can be withdrawn in one tap.",
+    applicationTitle: "My application",
     cancelRegistration: "Withdraw my application",
+    cancelLocked:
+      "%{count} ride(s) are attached to this profile, so the application can no longer be withdrawn. Go offline to stop receiving rides.",
+    history: "History · %{count} ride(s)",
+    earned: "Net earnings",
     cancelTitle: "Withdraw the application?",
     cancelBody:
       "The application and any documents already sent will be deleted. The account goes back to being a rider account.",

@@ -156,6 +156,19 @@ export default function DriverHomeScreen({ navigation }: Props) {
     ["DRIVER_ASSIGNED", "IN_PROGRESS"].includes(r.status)
   );
 
+  const pastRides = mine.filter((r) =>
+    ["COMPLETED", "CANCELLED", "DISPUTED"].includes(r.status)
+  );
+
+  /**
+   * Ce que la course a rapporté, commission déduite. Le taux vient du
+   * portefeuille : c'est celui que le backend applique au moment de créditer.
+   */
+  function earningsOf(totalFcfa: number): number {
+    const rate = profile?.wallet?.commissionRate ?? 0.12;
+    return Math.round(totalFcfa * (1 - rate));
+  }
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.ground }}
@@ -221,6 +234,31 @@ export default function DriverHomeScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("DriverDocuments")}
           />
         ) : null}
+      </Card>
+
+      {/* La carte reste visible même quand le retrait n'est plus possible : un
+          bouton absent ne se distingue pas d'un bug, une explication si. */}
+      <Card>
+        <Text style={[text.label, { color: colors.textMuted }]}>
+          {t("driver.applicationTitle")}
+        </Text>
+        {mine.length === 0 ? (
+          <>
+            <Text style={[text.body, { color: colors.textMuted }]}>
+              {t("driver.becomeReversible")}
+            </Text>
+            <Button
+              label={t("driver.cancelRegistration")}
+              variant="danger"
+              loading={cancelling}
+              onPress={confirmCancelRegistration}
+            />
+          </>
+        ) : (
+          <Text style={[text.body, { color: colors.textMuted }]}>
+            {t("driver.cancelLocked", { count: mine.length })}
+          </Text>
+        )}
       </Card>
 
       <Card onPress={() => navigation.navigate("DriverWallet")}>
@@ -326,15 +364,28 @@ export default function DriverHomeScreen({ navigation }: Props) {
         )}
       </View>
 
-      {/* Tant qu'aucune course n'est rattachée au dossier, la candidature se
-          retire : c'est la même règle que celle appliquée par l'API. */}
-      {mine.length === 0 ? (
-        <Button
-          label={t("driver.cancelRegistration")}
-          variant="danger"
-          loading={cancelling}
-          onPress={confirmCancelRegistration}
-        />
+      {/* Historique : ce que le chauffeur a réellement conduit. Les courses en
+          cours sont plus haut, elles appellent une action ; ici on consulte. */}
+      {pastRides.length > 0 ? (
+        <View style={{ gap: space[3] }}>
+          <Text style={[text.label, { color: colors.textMuted }]}>
+            {t("driver.history", { count: pastRides.length })}
+          </Text>
+          {pastRides.map((ride) => (
+            <Card key={ride.id}>
+              <RideSummary ride={ride} />
+              {ride.status === "COMPLETED" ? (
+                <InfoRow
+                  label={t("driver.earned")}
+                  value={formatAmount(
+                    earningsOf(ride.finalPriceFcfa ?? ride.estimatedPriceFcfa ?? 0)
+                  )}
+                  emphasis
+                />
+              ) : null}
+            </Card>
+          ))}
+        </View>
       ) : null}
     </ScrollView>
   );
