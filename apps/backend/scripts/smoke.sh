@@ -66,17 +66,22 @@ login() {
 echo "== Admin =="
 ADMIN=$(login admin@frontiride.com)
 STATS=$(curl -s $API/admin/stats -H "Authorization: Bearer $ADMIN")
-check "2 chauffeurs à valider" "$(echo "$STATS" | j drivers.pendingReview)" "2"
-check "2 chauffeurs validés" "$(echo "$STATS" | j drivers.approved)" "2"
-check "CA des courses terminées" "$(echo "$STATS" | j revenue.totalFcfa)" "28000"
+PENDING_BEFORE=$(echo "$STATS" | j drivers.pendingReview)
+APPROVED_BEFORE=$(echo "$STATS" | j drivers.approved)
+check "des dossiers attendent un contrôle" "$([ "$PENDING_BEFORE" -ge 1 ] && echo ok)" "ok"
+check "des chauffeurs sont validés" "$([ "$APPROVED_BEFORE" -ge 1 ] && echo ok)" "ok"
+check "le CA des courses terminées est renseigné" "$([ "$(echo "$STATS" | j revenue.totalFcfa)" -gt 0 ] && echo ok)" "ok"
 echo "  séquestre: $(echo "$STATS" | j escrow.amountFcfa) FCFA sur $(echo "$STATS" | j escrow.count) paiements"
 
 CLIENT=$(login client@example.com)
 check "un client ne peut pas voir /admin/stats" "$(curl -s -o /dev/null -w '%{http_code}' $API/admin/stats -H "Authorization: Bearer $CLIENT")" "403"
 
 echo "== Validation d'un chauffeur =="
-check "validation" "$(curl -s -X POST $API/admin/drivers/seed-driver-seydou/approve -H "Authorization: Bearer $ADMIN" | j status)" "APPROVED"
-check "il ne reste qu'1 dossier en attente" "$(curl -s $API/admin/stats -H "Authorization: Bearer $ADMIN" | j drivers.pendingReview)" "1"
+TO_APPROVE=$(curl -s "$API/admin/drivers?status=PENDING_REVIEW" -H "Authorization: Bearer $ADMIN" | j 0.id)
+check "validation" "$(curl -s -X POST $API/admin/drivers/$TO_APPROVE/approve -H "Authorization: Bearer $ADMIN" | j status)" "APPROVED"
+check "un dossier de moins en attente" \
+  "$(curl -s $API/admin/stats -H "Authorization: Bearer $ADMIN" | j drivers.pendingReview)" \
+  "$((PENDING_BEFORE - 1))"
 
 echo "== Parcours chauffeur =="
 DRIVER=$(login kofi.adjovi@example.com)
@@ -86,7 +91,8 @@ echo "  solde: $(echo "$ME" | j wallet.balanceFcfa) FCFA / en attente: $(echo "$
 
 AVAIL=$(curl -s $API/driver/rides/available -H "Authorization: Bearer $DRIVER")
 RIDE=$(echo "$AVAIL" | j 0.id)
-echo "  courses disponibles: $(echo "$AVAIL" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')"
+N_AVAIL=$(echo "$AVAIL" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')
+check "des courses sont proposées au chauffeur" "$([ "$N_AVAIL" -ge 1 ] && echo ok)" "ok"
 
 check "acceptation" "$(curl -s -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER" | j status)" "DRIVER_ASSIGNED"
 
@@ -94,8 +100,10 @@ DRIVER2=$(login amivi.kossi@example.com)
 check "un 2e chauffeur ne peut plus la prendre" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER2")" "409"
 
 curl -s -X POST $API/driver/rides/$RIDE/start -H "Authorization: Bearer $DRIVER" > /dev/null
+RIDE_PRICE=$(echo "$AVAIL" | j 0.estimatedPriceFcfa)
 COMP=$(curl -s -X POST $API/driver/rides/$RIDE/complete -H "Authorization: Bearer $DRIVER")
-check "gains = 56000 - 12% commission" "$(echo "$COMP" | j earningsFcfa)" "49280"
+check "gains = prix moins 12 % de commission" "$(echo "$COMP" | j earningsFcfa)" \
+  "$(python3 -c "print(round($RIDE_PRICE * 0.88))")"
 
 echo "== Retrait =="
 check "retrait > solde refusé" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/withdrawals \

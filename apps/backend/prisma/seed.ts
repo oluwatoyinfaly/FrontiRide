@@ -1,16 +1,30 @@
 /**
  * Jeu de données de démonstration.
  *
+ * Objectif : qu'un premier lancement montre l'application vivante — un
+ * historique fourni côté client, un catalogue de véhicules réellement
+ * filtrable, et un back-office où chaque écran a de quoi s'afficher.
+ *
  * Idempotent : toutes les écritures sont des upserts sur des identifiants
  * fixes, donc relancer le seed ne duplique rien.
  */
-import { PrismaClient, type DocumentType } from "@prisma/client";
+import {
+  PrismaClient,
+  type BookingStatus,
+  type BookingType,
+  type DocumentType,
+  type DriverStatus,
+  type PaymentMethod,
+  type PaymentStatus,
+  type VehicleType,
+} from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@frontiride.com";
+const CLIENT_EMAIL = "client@example.com";
 
-const REQUIRED_DOCUMENTS: DocumentType[] = [
+const ALL_DOCUMENTS: DocumentType[] = [
   "CNI",
   "PERMIS",
   "CARTE_GRISE",
@@ -20,12 +34,505 @@ const REQUIRED_DOCUMENTS: DocumentType[] = [
   "PHOTO_VEHICULE",
 ];
 
-function daysFromNow(days: number): Date {
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+/** Décalage en jours par rapport à maintenant, à heure fixée. */
+function at(days: number, hour = 8): Date {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  date.setHours(hour, 0, 0, 0);
+  return date;
 }
 
+// --- Trançons du corridor pilote -------------------------------------------
+
+const TRONCONS = [
+  {
+    id: "trancon-cotonou-lome",
+    originCity: "Cotonou",
+    destinationCity: "Lomé",
+    borderPoint: "Hilacondji",
+    priceFcfa: 25000,
+    estimatedCustomsFeeFcfa: 3000,
+  },
+  {
+    id: "trancon-lome-cotonou",
+    originCity: "Lomé",
+    destinationCity: "Cotonou",
+    borderPoint: "Hilacondji",
+    priceFcfa: 25000,
+    estimatedCustomsFeeFcfa: 3000,
+  },
+  {
+    id: "trancon-hilacondji-lome",
+    originCity: "Hilacondji (frontière)",
+    destinationCity: "Lomé",
+    borderPoint: "Hilacondji",
+    priceFcfa: 12000,
+    estimatedCustomsFeeFcfa: 1500,
+  },
+  {
+    id: "trancon-cotonou-hilacondji",
+    originCity: "Cotonou",
+    destinationCity: "Hilacondji (frontière)",
+    borderPoint: "Hilacondji",
+    priceFcfa: 15000,
+    estimatedCustomsFeeFcfa: 1500,
+  },
+  {
+    id: "trancon-cotonou-aneho",
+    originCity: "Cotonou",
+    destinationCity: "Aného",
+    borderPoint: "Hilacondji",
+    priceFcfa: 20000,
+    estimatedCustomsFeeFcfa: 2500,
+  },
+];
+
+// --- Chauffeurs -------------------------------------------------------------
+
+interface VehicleSpec {
+  type: VehicleType;
+  brand: string;
+  model: string;
+  plateNumber: string;
+  seats: number;
+  pricePerDay: number;
+}
+
+interface DriverSpec {
+  key: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  baseCity: "Cotonou" | "Lomé";
+  status: DriverStatus;
+  rating: number;
+  offersLocationVille: boolean;
+  /** Nombre de pièces fournies : en deçà de sept, le dossier est incomplet. */
+  documentsProvided?: number;
+  vehicles: VehicleSpec[];
+  wallet?: { balanceFcfa: number; pendingFcfa: number };
+}
+
+const DRIVERS: DriverSpec[] = [
+  {
+    key: "kofi",
+    fullName: "Kofi Adjovi",
+    email: "kofi.adjovi@example.com",
+    phone: "+22997000001",
+    baseCity: "Cotonou",
+    status: "APPROVED",
+    rating: 4.9,
+    offersLocationVille: true,
+    vehicles: [
+      {
+        type: "CONFORT",
+        brand: "Toyota",
+        model: "Corolla",
+        plateNumber: "AB-1234-RB",
+        seats: 4,
+        pricePerDay: 35000,
+      },
+    ],
+    wallet: { balanceFcfa: 42000, pendingFcfa: 22000 },
+  },
+  {
+    key: "amivi",
+    fullName: "Amivi Kossi",
+    email: "amivi.kossi@example.com",
+    phone: "+22890000002",
+    baseCity: "Lomé",
+    status: "APPROVED",
+    rating: 4.7,
+    offersLocationVille: true,
+    vehicles: [
+      {
+        type: "SUV",
+        brand: "Toyota",
+        model: "RAV4",
+        plateNumber: "TG-5567-AA",
+        seats: 5,
+        pricePerDay: 55000,
+      },
+    ],
+    wallet: { balanceFcfa: 118000, pendingFcfa: 46200 },
+  },
+  {
+    key: "seydou",
+    fullName: "Seydou Traoré",
+    email: "seydou.traore@example.com",
+    phone: "+22997000003",
+    baseCity: "Cotonou",
+    status: "APPROVED",
+    rating: 4.5,
+    offersLocationVille: true,
+    vehicles: [
+      {
+        type: "ECONOMIQUE",
+        brand: "Kia",
+        model: "Picanto",
+        plateNumber: "AB-7788-RB",
+        seats: 4,
+        pricePerDay: 22000,
+      },
+    ],
+    wallet: { balanceFcfa: 8500, pendingFcfa: 0 },
+  },
+  {
+    // Agence : deux véhicules sous le même dossier.
+    key: "mariam",
+    fullName: "Mariam Bello",
+    email: "mariam.bello@example.com",
+    phone: "+22997000004",
+    baseCity: "Cotonou",
+    status: "APPROVED",
+    rating: 5,
+    offersLocationVille: true,
+    vehicles: [
+      {
+        type: "PREMIUM",
+        brand: "Mercedes",
+        model: "Classe E",
+        plateNumber: "AB-9012-RB",
+        seats: 4,
+        pricePerDay: 85000,
+      },
+      {
+        type: "MINIBUS",
+        brand: "Toyota",
+        model: "Hiace",
+        plateNumber: "AB-9013-RB",
+        seats: 14,
+        pricePerDay: 78000,
+      },
+    ],
+    wallet: { balanceFcfa: 236000, pendingFcfa: 0 },
+  },
+  {
+    key: "yao",
+    fullName: "Yao Mensah",
+    email: "yao.mensah@example.com",
+    phone: "+22890000005",
+    baseCity: "Lomé",
+    status: "APPROVED",
+    rating: 4.6,
+    offersLocationVille: true,
+    vehicles: [
+      {
+        type: "ECONOMIQUE",
+        brand: "Toyota",
+        model: "Yaris",
+        plateNumber: "TG-3321-AA",
+        seats: 4,
+        pricePerDay: 20000,
+      },
+    ],
+    wallet: { balanceFcfa: 31000, pendingFcfa: 17600 },
+  },
+  {
+    key: "fatou",
+    fullName: "Fatou Sowa",
+    email: "fatou.sowa@example.com",
+    phone: "+22890000006",
+    baseCity: "Lomé",
+    status: "APPROVED",
+    rating: 4.8,
+    offersLocationVille: true,
+    vehicles: [
+      {
+        type: "MINIBUS",
+        brand: "Mercedes",
+        model: "Sprinter",
+        plateNumber: "TG-6644-AA",
+        seats: 15,
+        pricePerDay: 92000,
+      },
+      {
+        type: "CONFORT",
+        brand: "Hyundai",
+        model: "Elantra",
+        plateNumber: "TG-6645-AA",
+        seats: 4,
+        pricePerDay: 33000,
+      },
+    ],
+    wallet: { balanceFcfa: 74500, pendingFcfa: 0 },
+  },
+  {
+    key: "ibrahim",
+    fullName: "Ibrahim Salifou",
+    email: "ibrahim.salifou@example.com",
+    phone: "+22997000007",
+    baseCity: "Cotonou",
+    status: "PENDING_REVIEW",
+    rating: 0,
+    offersLocationVille: true,
+    vehicles: [
+      {
+        type: "CONFORT",
+        brand: "Hyundai",
+        model: "Sonata",
+        plateNumber: "AB-4455-RB",
+        seats: 4,
+        pricePerDay: 32000,
+      },
+    ],
+  },
+  {
+    key: "nadia",
+    fullName: "Nadia Agbeko",
+    email: "nadia.agbeko@example.com",
+    phone: "+22890000008",
+    baseCity: "Lomé",
+    status: "PENDING_REVIEW",
+    rating: 0,
+    offersLocationVille: true,
+    vehicles: [
+      {
+        type: "SUV",
+        brand: "Toyota",
+        model: "Prado",
+        plateNumber: "TG-8899-AA",
+        seats: 7,
+        pricePerDay: 68000,
+      },
+    ],
+  },
+  {
+    // Dossier incomplet : illustre l'écran « pièces manquantes ».
+    key: "rachid",
+    fullName: "Rachid Ouédraogo",
+    email: "rachid.ouedraogo@example.com",
+    phone: "+22997000009",
+    baseCity: "Cotonou",
+    status: "PENDING_DOCUMENTS",
+    rating: 0,
+    offersLocationVille: false,
+    documentsProvided: 3,
+    vehicles: [
+      {
+        type: "ECONOMIQUE",
+        brand: "Suzuki",
+        model: "Swift",
+        plateNumber: "AB-1177-RB",
+        seats: 4,
+        pricePerDay: 19000,
+      },
+    ],
+  },
+  {
+    // Dossier refusé : illustre le cas de rejet côté back-office.
+    key: "paul",
+    fullName: "Paul Houngbé",
+    email: "paul.houngbe@example.com",
+    phone: "+22997000010",
+    baseCity: "Cotonou",
+    status: "REJECTED",
+    rating: 0,
+    offersLocationVille: false,
+    vehicles: [
+      {
+        type: "ECONOMIQUE",
+        brand: "Peugeot",
+        model: "207",
+        plateNumber: "AB-2200-RB",
+        seats: 4,
+        pricePerDay: 18000,
+      },
+    ],
+  },
+];
+
+// --- Réservations du client de démonstration --------------------------------
+
+interface BookingSpec {
+  ref: string;
+  type: BookingType;
+  status: BookingStatus;
+  driverKey?: string;
+  tranconId?: string;
+  vehicleKey?: string;
+  departureDays?: number;
+  startDays?: number;
+  durationDays?: number;
+  seats?: number;
+  isRoundTrip?: boolean;
+  price: number;
+  final?: number;
+  payment?: { status: PaymentStatus; method: PaymentMethod };
+  rating?: { score: number; comment?: string };
+  cancelReason?: string;
+}
+
+const BOOKINGS: BookingSpec[] = [
+  // --- Historique -----------------------------------------------------------
+  {
+    ref: "FR-10428",
+    type: "FRONTALIER",
+    status: "COMPLETED",
+    driverKey: "kofi",
+    tranconId: "trancon-cotonou-lome",
+    departureDays: -34,
+    seats: 2,
+    price: 28000,
+    final: 28000,
+    payment: { status: "RELEASED", method: "MOMO_MTN" },
+    rating: { score: 5, comment: "Chauffeur ponctuel, passage de la frontière très fluide." },
+  },
+  {
+    ref: "FR-23187",
+    type: "FRONTALIER",
+    status: "COMPLETED",
+    driverKey: "amivi",
+    tranconId: "trancon-lome-cotonou",
+    departureDays: -27,
+    seats: 1,
+    price: 28000,
+    final: 28000,
+    payment: { status: "RELEASED", method: "MOMO_MOOV" },
+    rating: { score: 4, comment: "Bon trajet, léger retard au départ." },
+  },
+  {
+    ref: "LV-55031",
+    type: "LOCATION_VILLE",
+    status: "COMPLETED",
+    driverKey: "mariam",
+    vehicleKey: "mariam-0",
+    startDays: -20,
+    durationDays: 2,
+    price: 170000,
+    final: 170000,
+    payment: { status: "RELEASED", method: "CARD" },
+    rating: { score: 5, comment: "Véhicule impeccable pour nos réunions." },
+  },
+  {
+    ref: "FR-31902",
+    type: "FRONTALIER",
+    status: "COMPLETED",
+    driverKey: "yao",
+    tranconId: "trancon-hilacondji-lome",
+    departureDays: -12,
+    seats: 3,
+    price: 13500,
+    final: 13500,
+    payment: { status: "RELEASED", method: "CASH" },
+    rating: { score: 5 },
+  },
+  {
+    ref: "FR-40771",
+    type: "FRONTALIER",
+    status: "COMPLETED",
+    driverKey: "kofi",
+    tranconId: "trancon-cotonou-lome",
+    departureDays: -6,
+    seats: 1,
+    isRoundTrip: true,
+    price: 56000,
+    final: 56000,
+    payment: { status: "RELEASED", method: "MOMO_MTN" },
+    // Volontairement non notée : l'écran de notation reste atteignable.
+  },
+  {
+    ref: "FR-44120",
+    type: "FRONTALIER",
+    status: "CANCELLED",
+    tranconId: "trancon-cotonou-aneho",
+    departureDays: -4,
+    seats: 2,
+    price: 22500,
+    payment: { status: "REFUNDED", method: "MOMO_MTN" },
+    cancelReason: "Réunion reportée",
+  },
+  {
+    ref: "LV-61234",
+    type: "LOCATION_VILLE",
+    status: "DISPUTED",
+    driverKey: "seydou",
+    vehicleKey: "seydou-0",
+    startDays: -3,
+    durationDays: 1,
+    price: 22000,
+    final: 22000,
+    payment: { status: "ESCROW_HELD", method: "MOMO_MOOV" },
+  },
+
+  // --- En cours -------------------------------------------------------------
+  {
+    ref: "FR-52318",
+    type: "FRONTALIER",
+    status: "IN_PROGRESS",
+    driverKey: "amivi",
+    tranconId: "trancon-lome-cotonou",
+    departureDays: 0,
+    seats: 1,
+    price: 28000,
+    payment: { status: "ESCROW_HELD", method: "MOMO_MOOV" },
+  },
+  {
+    ref: "LV-77315",
+    type: "LOCATION_VILLE",
+    status: "DRIVER_ASSIGNED",
+    driverKey: "kofi",
+    vehicleKey: "kofi-0",
+    startDays: 2,
+    durationDays: 3,
+    price: 105000,
+    payment: { status: "ESCROW_HELD", method: "MOMO_MTN" },
+  },
+
+  // --- À venir, sans chauffeur : nourrit l'écran « courses disponibles » -----
+  {
+    ref: "FR-55901",
+    type: "FRONTALIER",
+    status: "CONFIRMED",
+    tranconId: "trancon-cotonou-lome",
+    departureDays: 3,
+    seats: 4,
+    price: 56000,
+    isRoundTrip: true,
+    payment: { status: "ESCROW_HELD", method: "CARD" },
+  },
+  {
+    ref: "FR-56744",
+    type: "FRONTALIER",
+    status: "CONFIRMED",
+    tranconId: "trancon-cotonou-hilacondji",
+    departureDays: 5,
+    seats: 2,
+    price: 16500,
+    payment: { status: "ESCROW_HELD", method: "MOMO_MTN" },
+  },
+
+  // --- En attente de paiement ----------------------------------------------
+  {
+    ref: "LV-88024",
+    type: "LOCATION_VILLE",
+    status: "AWAITING_PAYMENT",
+    vehicleKey: "amivi-0",
+    startDays: 6,
+    durationDays: 1,
+    price: 55000,
+  },
+  {
+    ref: "FR-90118",
+    type: "FRONTALIER",
+    status: "AWAITING_PAYMENT",
+    tranconId: "trancon-cotonou-aneho",
+    departureDays: 9,
+    seats: 1,
+    price: 22500,
+  },
+];
+
+// --- Demandes de retrait ----------------------------------------------------
+
+const WITHDRAWALS = [
+  { id: "seed-wd-1", driverKey: "mariam", amountFcfa: 150000, status: "REQUESTED" as const, days: -1 },
+  { id: "seed-wd-2", driverKey: "amivi", amountFcfa: 60000, status: "REQUESTED" as const, days: -2 },
+  { id: "seed-wd-3", driverKey: "kofi", amountFcfa: 25000, status: "PAID" as const, days: -9 },
+];
+
 async function main() {
-  // --- Administrateur ---
+  // --- Administrateur -------------------------------------------------------
   const admin = await prisma.user.upsert({
     where: { email: ADMIN_EMAIL },
     update: { role: "ADMIN" },
@@ -40,35 +547,8 @@ async function main() {
     },
   });
 
-  // --- Trançons du corridor pilote ---
-  const troncons = [
-    {
-      id: "trancon-cotonou-lome",
-      originCity: "Cotonou",
-      destinationCity: "Lomé",
-      borderPoint: "Hilacondji",
-      priceFcfa: 25000,
-      estimatedCustomsFeeFcfa: 3000,
-    },
-    {
-      id: "trancon-lome-cotonou",
-      originCity: "Lomé",
-      destinationCity: "Cotonou",
-      borderPoint: "Hilacondji",
-      priceFcfa: 25000,
-      estimatedCustomsFeeFcfa: 3000,
-    },
-    {
-      id: "trancon-hilacondji-lome",
-      originCity: "Hilacondji (frontière)",
-      destinationCity: "Lomé",
-      borderPoint: "Hilacondji",
-      priceFcfa: 12000,
-      estimatedCustomsFeeFcfa: 1500,
-    },
-  ];
-
-  for (const trancon of troncons) {
+  // --- Trançons -------------------------------------------------------------
+  for (const trancon of TRONCONS) {
     await prisma.trancon.upsert({
       where: { id: trancon.id },
       update: trancon,
@@ -76,81 +556,11 @@ async function main() {
     });
   }
 
-  // --- Chauffeurs ---
-  const driverSpecs = [
-    {
-      key: "kofi",
-      fullName: "Kofi Adjovi",
-      email: "kofi.adjovi@example.com",
-      phone: "+22997000001",
-      baseCity: "Cotonou",
-      status: "APPROVED" as const,
-      rating: 4.9,
-      vehicle: {
-        type: "CONFORT" as const,
-        brand: "Toyota",
-        model: "Corolla",
-        plateNumber: "AB-1234-RB",
-        seats: 4,
-        pricePerDay: 35000,
-      },
-    },
-    {
-      key: "amivi",
-      fullName: "Amivi Kossi",
-      email: "amivi.kossi@example.com",
-      phone: "+22890000002",
-      baseCity: "Lomé",
-      status: "APPROVED" as const,
-      rating: 4.7,
-      vehicle: {
-        type: "SUV" as const,
-        brand: "Toyota",
-        model: "RAV4",
-        plateNumber: "TG-5567-AA",
-        seats: 5,
-        pricePerDay: 55000,
-      },
-    },
-    {
-      key: "seydou",
-      fullName: "Seydou Traoré",
-      email: "seydou.traore@example.com",
-      phone: "+22997000003",
-      baseCity: "Cotonou",
-      status: "PENDING_REVIEW" as const,
-      rating: 0,
-      vehicle: {
-        type: "ECONOMIQUE" as const,
-        brand: "Kia",
-        model: "Picanto",
-        plateNumber: "AB-7788-RB",
-        seats: 4,
-        pricePerDay: 22000,
-      },
-    },
-    {
-      key: "mariam",
-      fullName: "Mariam Bello",
-      email: "mariam.bello@example.com",
-      phone: "+22997000004",
-      baseCity: "Cotonou",
-      status: "PENDING_REVIEW" as const,
-      rating: 0,
-      vehicle: {
-        type: "PREMIUM" as const,
-        brand: "Mercedes",
-        model: "Classe E",
-        plateNumber: "AB-9012-RB",
-        seats: 4,
-        pricePerDay: 85000,
-      },
-    },
-  ];
+  // --- Chauffeurs, véhicules, pièces, portefeuilles --------------------------
+  const driverIds: Record<string, string> = {};
+  const vehicleIds: Record<string, string> = {};
 
-  const drivers: Record<string, string> = {};
-
-  for (const spec of driverSpecs) {
+  for (const spec of DRIVERS) {
     const user = await prisma.user.upsert({
       where: { email: spec.email },
       update: { fullName: spec.fullName, role: "DRIVER" },
@@ -174,14 +584,15 @@ async function main() {
         status: spec.status,
         baseCity: spec.baseCity,
         offersFrontalier: true,
-        offersLocationVille: true,
+        offersLocationVille: spec.offersLocationVille,
         ratingAverage: spec.rating,
         isOnline: spec.status === "APPROVED",
       },
     });
-    drivers[spec.key] = driver.id;
+    driverIds[spec.key] = driver.id;
 
-    for (const type of REQUIRED_DOCUMENTS) {
+    const provided = ALL_DOCUMENTS.slice(0, spec.documentsProvided ?? ALL_DOCUMENTS.length);
+    for (const type of provided) {
       await prisma.document.upsert({
         where: { driverId_type: { driverId: driver.id, type } },
         update: {},
@@ -194,32 +605,32 @@ async function main() {
       });
     }
 
-    await prisma.vehicle.upsert({
-      where: { id: `seed-vehicle-${spec.key}` },
-      update: spec.vehicle,
-      create: { id: `seed-vehicle-${spec.key}`, driverId: driver.id, ...spec.vehicle },
-    });
+    for (const [index, vehicle] of spec.vehicles.entries()) {
+      const id = `seed-vehicle-${spec.key}-${index}`;
+      await prisma.vehicle.upsert({
+        where: { id },
+        update: vehicle,
+        create: { id, driverId: driver.id, ...vehicle },
+      });
+      vehicleIds[`${spec.key}-${index}`] = id;
+    }
 
-    if (spec.status === "APPROVED") {
+    if (spec.wallet) {
       await prisma.driverWallet.upsert({
         where: { driverId: driver.id },
         update: {},
-        create: {
-          driverId: driver.id,
-          balanceFcfa: 42000,
-          pendingFcfa: 22000,
-        },
+        create: { driverId: driver.id, ...spec.wallet },
       });
     }
   }
 
-  // --- Client de démonstration ---
+  // --- Client de démonstration ----------------------------------------------
   const client = await prisma.user.upsert({
-    where: { email: "client@example.com" },
+    where: { email: CLIENT_EMAIL },
     update: {},
     create: {
       id: "seed-client",
-      email: "client@example.com",
+      email: CLIENT_EMAIL,
       phone: "+22996000010",
       fullName: "Awa Diallo",
       emailVerified: true,
@@ -227,121 +638,134 @@ async function main() {
     },
   });
 
-  // --- Réservations couvrant chaque état du tableau de bord ---
-  const bookings = [
-    {
-      id: "seed-booking-1",
-      reference: "FR-1042",
-      type: "FRONTALIER" as const,
-      status: "COMPLETED" as const,
-      driverId: drivers.kofi,
-      tranconId: "trancon-cotonou-lome",
-      departureAt: daysFromNow(-6),
-      completedAt: daysFromNow(-6),
-      seats: 2,
-      estimatedPriceFcfa: 28000,
-      finalPriceFcfa: 28000,
-      payment: { status: "RELEASED" as const, method: "MOMO_MTN" as const },
-    },
-    {
-      id: "seed-booking-2",
-      reference: "FR-2318",
-      type: "FRONTALIER" as const,
-      status: "IN_PROGRESS" as const,
-      driverId: drivers.amivi,
-      tranconId: "trancon-lome-cotonou",
-      departureAt: daysFromNow(0),
-      startedAt: new Date(),
-      seats: 1,
-      estimatedPriceFcfa: 28000,
-      payment: { status: "ESCROW_HELD" as const, method: "MOMO_MOOV" as const },
-    },
-    {
-      id: "seed-booking-3",
-      reference: "FR-5590",
-      type: "FRONTALIER" as const,
-      status: "CONFIRMED" as const,
-      driverId: null,
-      tranconId: "trancon-cotonou-lome",
-      departureAt: daysFromNow(3),
-      seats: 4,
-      estimatedPriceFcfa: 56000,
-      payment: { status: "ESCROW_HELD" as const, method: "CARD" as const },
-    },
-    {
-      id: "seed-booking-4",
-      reference: "LV-7731",
-      type: "LOCATION_VILLE" as const,
-      status: "DRIVER_ASSIGNED" as const,
-      driverId: drivers.kofi,
-      vehicleId: "seed-vehicle-kofi",
-      city: "Cotonou",
-      vehicleType: "CONFORT" as const,
-      startAt: daysFromNow(2),
-      endAt: daysFromNow(5),
-      durationDays: 3,
-      estimatedPriceFcfa: 105000,
-      payment: { status: "ESCROW_HELD" as const, method: "MOMO_MTN" as const },
-    },
-    {
-      id: "seed-booking-5",
-      reference: "LV-8802",
-      type: "LOCATION_VILLE" as const,
-      status: "AWAITING_PAYMENT" as const,
-      driverId: null,
-      vehicleId: "seed-vehicle-amivi",
-      city: "Lomé",
-      vehicleType: "SUV" as const,
-      startAt: daysFromNow(5),
-      endAt: daysFromNow(6),
-      durationDays: 1,
-      estimatedPriceFcfa: 55000,
-      payment: null,
-    },
-  ];
+  // --- Réservations ----------------------------------------------------------
+  for (const [index, spec] of BOOKINGS.entries()) {
+    const id = `seed-booking-${index + 1}`;
+    const startAt = spec.startDays !== undefined ? at(spec.startDays) : null;
+    const endAt =
+      startAt && spec.durationDays
+        ? at(spec.startDays! + spec.durationDays)
+        : null;
 
-  for (const spec of bookings) {
-    const { payment, ...data } = spec;
+    const data = {
+      reference: spec.ref,
+      type: spec.type,
+      status: spec.status,
+      clientId: client.id,
+      driverId: spec.driverKey ? driverIds[spec.driverKey] : null,
+      vehicleId: spec.vehicleKey ? vehicleIds[spec.vehicleKey] : null,
+      tranconId: spec.tranconId ?? null,
+      departureAt: spec.departureDays !== undefined ? at(spec.departureDays) : null,
+      startAt,
+      endAt,
+      durationDays: spec.durationDays ?? null,
+      seats: spec.seats ?? 1,
+      isRoundTrip: spec.isRoundTrip ?? false,
+      city: spec.vehicleKey
+        ? DRIVERS.find((d) => d.key === spec.vehicleKey!.split("-")[0])!.baseCity
+        : null,
+      vehicleType: spec.vehicleKey
+        ? (() => {
+            const [key, idx] = spec.vehicleKey!.split("-");
+            return DRIVERS.find((d) => d.key === key)!.vehicles[Number(idx)].type;
+          })()
+        : null,
+      estimatedPriceFcfa: spec.price,
+      finalPriceFcfa: spec.final ?? null,
+      completedAt: spec.status === "COMPLETED" ? at(spec.departureDays ?? spec.startDays ?? 0) : null,
+      startedAt: ["IN_PROGRESS", "COMPLETED"].includes(spec.status)
+        ? at(spec.departureDays ?? spec.startDays ?? 0)
+        : null,
+      cancelledAt: spec.status === "CANCELLED" ? at(spec.departureDays ?? 0) : null,
+      cancelReason: spec.cancelReason ?? null,
+      acceptedAt: spec.driverKey ? at((spec.departureDays ?? spec.startDays ?? 0) - 1) : null,
+    };
 
     await prisma.booking.upsert({
-      where: { id: data.id },
-      update: { status: data.status },
-      create: { ...data, clientId: client.id },
+      where: { id },
+      update: { status: spec.status },
+      create: { id, ...data },
     });
 
-    if (payment) {
+    if (spec.payment) {
       await prisma.payment.upsert({
-        where: { bookingId: data.id },
-        update: { status: payment.status },
+        where: { bookingId: id },
+        update: { status: spec.payment.status },
         create: {
-          bookingId: data.id,
-          method: payment.method,
-          status: payment.status,
-          amountFcfa: data.estimatedPriceFcfa,
+          bookingId: id,
+          method: spec.payment.method,
+          status: spec.payment.status,
+          amountFcfa: spec.price,
+          advanceFcfa:
+            spec.type === "LOCATION_VILLE" ? Math.round(spec.price * 0.3) : null,
+          escrowReleaseAt:
+            spec.payment.status === "ESCROW_HELD" ? at(1) : null,
+        },
+      });
+    }
+
+    if (spec.rating && spec.driverKey) {
+      await prisma.rating.upsert({
+        where: { bookingId: id },
+        update: {},
+        create: {
+          bookingId: id,
+          clientId: client.id,
+          driverId: driverIds[spec.driverKey],
+          score: spec.rating.score,
+          comment: spec.rating.comment ?? null,
         },
       });
     }
   }
 
-  // Une note sur la course terminée, pour que la moyenne affichée soit réelle.
-  await prisma.rating.upsert({
-    where: { bookingId: "seed-booking-1" },
-    update: {},
-    create: {
-      bookingId: "seed-booking-1",
-      clientId: client.id,
-      driverId: drivers.kofi,
-      score: 5,
-      comment: "Chauffeur ponctuel, passage de la frontière très fluide.",
-    },
-  });
+  // --- Retraits --------------------------------------------------------------
+  for (const spec of WITHDRAWALS) {
+    const wallet = await prisma.driverWallet.findUnique({
+      where: { driverId: driverIds[spec.driverKey] },
+    });
+    if (!wallet) continue;
+
+    await prisma.withdrawalRequest.upsert({
+      where: { id: spec.id },
+      update: { status: spec.status },
+      create: {
+        id: spec.id,
+        walletId: wallet.id,
+        amountFcfa: spec.amountFcfa,
+        status: spec.status,
+        destination: DRIVERS.find((d) => d.key === spec.driverKey)!.phone,
+        createdAt: at(spec.days),
+        settledAt: spec.status === "PAID" ? at(spec.days + 2) : null,
+      },
+    });
+  }
+
+  const counts = {
+    troncons: TRONCONS.length,
+    drivers: DRIVERS.length,
+    approved: DRIVERS.filter((d) => d.status === "APPROVED").length,
+    pending: DRIVERS.filter((d) => d.status === "PENDING_REVIEW").length,
+    vehicles: DRIVERS.reduce((n, d) => n + d.vehicles.length, 0),
+    bookings: BOOKINGS.length,
+    withdrawals: WITHDRAWALS.length,
+  };
 
   console.log(`Seed terminé.
-  Admin        : ${admin.email}
-  Client démo  : ${client.email}
-  Chauffeurs   : ${driverSpecs.length} (2 validés, 2 en attente de contrôle)
-  Trançons     : ${troncons.length}
-  Réservations : ${bookings.length}`);
+
+  Comptes
+    Admin        ${admin.email}
+    Client démo  ${client.email}          (historique de ${counts.bookings} courses)
+    Chauffeur    kofi.adjovi@example.com
+
+  Données
+    Trançons     ${counts.troncons}
+    Chauffeurs   ${counts.drivers}  (${counts.approved} validés, ${counts.pending} à contrôler)
+    Véhicules    ${counts.vehicles}
+    Réservations ${counts.bookings}
+    Retraits     ${counts.withdrawals}
+
+  Connexion : les codes OTP sont renvoyés par l'API hors production.`);
 }
 
 main()

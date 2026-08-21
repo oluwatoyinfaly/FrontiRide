@@ -52,11 +52,14 @@ $env:BACKEND_PORT=4000; docker compose up --build
 
 Le seed crée le corridor Cotonou ↔ Lomé, quatre chauffeurs (deux validés, deux à contrôler), un client et cinq réservations couvrant chaque état — de quoi voir le back-office rempli dès le premier démarrage. Il est idempotent : le relancer ne duplique rien.
 
-| Compte de démonstration | Rôle |
-|---|---|
-| `admin@frontiride.com` | Administrateur |
-| `client@example.com` | Client |
-| `kofi.adjovi@example.com` | Chauffeur validé |
+| Compte de démonstration | Rôle | Ce qu'on y voit |
+|---|---|---|
+| `admin@frontiride.com` | Administrateur | 2 dossiers à contrôler, 5 paiements sous séquestre, 2 retraits à verser |
+| `client@example.com` | Client | 13 courses couvrant tous les états, dont 5 terminées et 4 notées |
+| `kofi.adjovi@example.com` | Chauffeur validé | Portefeuille garni, courses passées et à venir |
+| `rachid.ouedraogo@example.com` | Chauffeur incomplet | Dossier à 3 pièces sur 7 |
+
+**Connecte-toi avec `client@example.com` sur le mobile** : un compte tout neuf afficherait un historique vide, alors que celui-ci montre l'application vivante.
 
 L'authentification se fait par code OTP double (email + SMS). **Hors production, l'API renvoie les codes dans sa réponse** et les interfaces les préremplissent : le parcours est donc testable sans passerelle SMS.
 

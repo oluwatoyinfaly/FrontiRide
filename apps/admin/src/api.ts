@@ -69,7 +69,7 @@ export interface Stats {
   pendingWithdrawals: number;
   topTroncons: {
     count: number;
-    trancon: { originCity: string; destinationCity: string } | null;
+    trancon: { id: string; originCity: string; destinationCity: string } | null;
   }[];
 }
 
