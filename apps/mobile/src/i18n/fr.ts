@@ -112,6 +112,9 @@ export const fr = {
   contact: {
     appCall: "Appel FrontiRide",
     appCallHint: "Gratuit, par Internet",
+    appCallNeedsBuild: "Indisponible dans Expo Go",
+    appCallNeedsBuildBody:
+      "L'appel par Internet demande un build de développement de FrontiRide : Expo Go n'embarque pas le module audio. En attendant, WhatsApp fait le même trajet, par les données.",
     call: "Appel téléphonique",
     callHint: "Depuis votre forfait mobile",
     callHintRoaming: "Hors forfait : l'autre partie est à l'étranger",

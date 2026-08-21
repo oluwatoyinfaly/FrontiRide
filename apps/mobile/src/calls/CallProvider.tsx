@@ -42,6 +42,14 @@ const IDLE: CallState = {
 interface CallValue {
   /** Vrai si l'appel dans l'application est utilisable ici et maintenant. */
   available: boolean;
+  /** Le serveur a ses clés Agora. */
+  serverEnabled: boolean;
+  /**
+   * Le module natif est présent. Faux sous Expo Go : l'écart entre ces deux
+   * drapeaux est ce qui permet d'expliquer l'indisponibilité au lieu de
+   * masquer l'option sans un mot.
+   */
+  nativeSupported: boolean;
   state: CallState;
   call: (bookingId: string, peerName: string | null) => Promise<void>;
   hangUp: () => Promise<void>;
@@ -201,6 +209,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const value: CallValue = {
     available,
+    serverEnabled,
+    nativeSupported: supported,
     state,
     call,
     hangUp,

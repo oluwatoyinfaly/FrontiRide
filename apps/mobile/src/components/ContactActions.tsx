@@ -38,7 +38,7 @@ export function ContactActions({
 }: ContactActionsProps) {
   const { colors, radius, space, text } = useTheme();
   const { t } = useI18n();
-  const { available: canVoip, call } = useCall();
+  const { available: canVoip, serverEnabled, nativeSupported, call } = useCall();
 
   const [busy, setBusy] = useState(false);
 
@@ -73,6 +73,18 @@ export function ContactActions({
           title={t("contact.appCall")}
           hint={t("contact.appCallHint")}
           onPress={() => call(bookingId, name ?? null)}
+        />
+      ) : null}
+
+      {/* Le serveur sait appeler mais pas cette version de l'app : on le dit.
+          Une option qui disparaît sans explication passe pour une panne. */}
+      {!canVoip && serverEnabled && !nativeSupported ? (
+        <Row
+          icon="wifi"
+          quiet
+          title={t("contact.appCall")}
+          hint={t("contact.appCallNeedsBuild")}
+          onPress={() => Alert.alert(t("contact.appCall"), t("contact.appCallNeedsBuildBody"))}
         />
       ) : null}
 

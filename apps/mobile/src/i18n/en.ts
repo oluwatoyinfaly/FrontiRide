@@ -119,6 +119,9 @@ export const en: Dictionary = {
   contact: {
     appCall: "FrontiRide call",
     appCallHint: "Free, over the internet",
+    appCallNeedsBuild: "Not available in Expo Go",
+    appCallNeedsBuildBody:
+      "Calling over the internet needs a FrontiRide development build: Expo Go does not ship the audio module. In the meantime, WhatsApp goes over data too.",
     call: "Phone call",
     callHint: "Uses your mobile plan",
     callHintRoaming: "Off-plan: the other party is abroad",
