@@ -117,15 +117,29 @@ export const en: Dictionary = {
   },
 
   contact: {
-    call: "Call",
+    appCall: "FrontiRide call",
+    appCallHint: "Free, over the internet",
+    call: "Phone call",
+    callHint: "Uses your mobile plan",
+    callHintRoaming: "Off-plan: the other party is abroad",
     whatsapp: "WhatsApp",
+    whatsappHint: "Message or call, over the internet",
     message:
       "Hello, I'm reaching out about FrontiRide ride %{reference} (%{trip}).",
-    roamingHint:
-      "Cross-border trip: WhatsApp uses data, a regular call goes through roaming.",
     whatsappUnavailable:
       "WhatsApp isn't available for this number. Use a phone call instead.",
     callFailed: "Could not start the call.",
+  },
+  call: {
+    ringing: "Ringing…",
+    incoming: "Incoming call · %{reference}",
+    unknown: "Unknown caller",
+    mute: "Mic",
+    speaker: "Speaker",
+    declined: "Call declined",
+    missed: "No answer",
+    failed: "Call failed",
+    ended: "Call ended",
   },
   trips: {
     title: "My trips",

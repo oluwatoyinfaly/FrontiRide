@@ -53,6 +53,14 @@ enum BookingType {
   LOCATION_VILLE
 }
 
+enum CallStatus {
+  RINGING
+  ACCEPTED
+  DECLINED
+  ENDED
+  MISSED
+}
+
 enum BookingStatus {
   DRAFT
   AWAITING_PAYMENT
@@ -223,6 +231,31 @@ model Booking {
   trancon Trancon? @relation(fields: [tranconId], references: [id])
   payment Payment?
   rating  Rating?
+  calls   Call[]
+}
+
+/// Un appel passé dans l'application, via Agora. La ligne sert de sonnerie :
+/// le destinataire interroge /calls/incoming et découvre l'appel qui l'attend.
+/// Quand le push sera en place, il remplacera cette interrogation sans changer
+/// le reste.
+model Call {
+  id        String     @id @default(cuid())
+  bookingId String
+  /// Canal Agora, dérivé de la course : les deux parties s'y retrouvent.
+  channel   String
+  /// Identifiants utilisateur, sans relation : un appel ne se lit jamais
+  /// depuis un compte, toujours depuis une course.
+  callerId  String
+  calleeId  String
+  status    CallStatus @default(RINGING)
+
+  createdAt  DateTime  @default(now())
+  answeredAt DateTime?
+  endedAt    DateTime?
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@index([calleeId, status])
 }
 
 model Payment {

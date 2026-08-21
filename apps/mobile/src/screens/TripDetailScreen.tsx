@@ -204,6 +204,7 @@ export default function TripDetailScreen({ route, navigation }: Props) {
                 </View>
               </View>
               <ContactActions
+                bookingId={booking.id}
                 phone={booking.driver.user.phone}
                 name={booking.driver.user.fullName}
                 message={contactMessage}
@@ -226,6 +227,7 @@ export default function TripDetailScreen({ route, navigation }: Props) {
           </Text>
           {booking.client?.phone ? (
             <ContactActions
+              bookingId={booking.id}
               phone={booking.client.phone}
               name={booking.client.fullName}
               message={contactMessage}

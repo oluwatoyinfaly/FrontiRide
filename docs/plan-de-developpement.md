@@ -108,18 +108,20 @@ Infobip, Africa's Talking) et une facturation à la minute. Le trafic reste sur
 le réseau téléphonique : rien à changer côté application, seulement le numéro
 composé.
 
-**Niveau 3 — appel dans l'application (VoIP).** L'appel passe par les données,
-sans numéro du tout. C'est le plus confortable et le seul qui supprime
-réellement l'itinérance. Il impose : un fournisseur temps réel (Agora, Twilio
-Voice SDK, LiveKit), un module natif — donc un **development build**, l'app ne
-tourne plus dans Expo Go —, la gestion des notifications push pour faire sonner
-un téléphone en veille (CallKit sur iOS, ConnectionService sur Android), et une
-qualité qui dépend du réseau mobile sur la route, souvent médiocre entre
-Cotonou et Lomé.
+**Niveau 3 — appel dans l'application (VoIP) — livré, sur Agora.** L'appel
+passe par les données, sans numéro. Le forfait gratuit d'Agora couvre 10 000
+minutes par mois, bien au-delà du pilote. Deux limites assumées à ce stade :
+l'appel exige un **development build** (Expo Go n'embarque pas le module
+natif), et la sonnerie n'atteint le destinataire que si son application est
+ouverte, faute de push. Voir [`appels.md`](appels.md).
 
-Recommandation : garder le niveau 1 pour le pilote, passer au niveau 2 dès
-qu'un incident de confidentialité se présente, et ne financer le niveau 3 que
-si le volume d'appels le justifie.
+Reste à faire pour un usage réel : le push (Expo Notifications, puis CallKit
+sur iOS et ConnectionService sur Android) pour faire sonner un téléphone en
+veille, et une campagne de tests sur le réseau du corridor, où la qualité se
+dégrade par endroits.
+
+Le niveau 2 reste la réponse à la confidentialité : le VoIP masque les numéros
+pendant l'appel, mais ils restent visibles dans la fiche de la course.
 
 ## 4. Prochaines étapes immédiates
 

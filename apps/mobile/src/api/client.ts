@@ -1,6 +1,9 @@
 import Constants from "expo-constants";
 import type {
   Booking,
+  Call,
+  CallCredentials,
+  IncomingCall,
   DriverProfile,
   DriverRide,
   Payment,
@@ -190,6 +193,23 @@ export const api = {
       "/payments/initiate",
       input
     ),
+
+  // --- Appels dans l'application ---
+  callsEnabled: () => request<{ enabled: boolean }>("/calls/config"),
+
+  startCall: (bookingId: string) =>
+    post<{ call: Call; credentials: CallCredentials }>("/calls", { bookingId }),
+
+  incomingCall: () => request<IncomingCall | null>("/calls/incoming"),
+
+  acceptCall: (id: string) =>
+    post<{ credentials: CallCredentials }>(`/calls/${id}/accept`),
+
+  declineCall: (id: string) => post<{ ok: boolean }>(`/calls/${id}/decline`),
+
+  endCall: (id: string) => post<{ ok: boolean }>(`/calls/${id}/end`),
+
+  callStatus: (id: string) => request<Call>(`/calls/${id}`),
 
   // --- Chauffeur ---
   driverRegister: (input: {

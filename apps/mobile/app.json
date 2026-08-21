@@ -17,10 +17,15 @@
       "icon": "./assets/notification-icon.png",
       "color": "#0B6E52"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.frontiride.app"
+      "bundleIdentifier": "com.frontiride.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "FrontiRide utilise le micro pour les appels entre client et chauffeur au sujet d'une course."
+      }
     },
     "android": {
       "package": "com.frontiride.app",
@@ -28,7 +33,13 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET"
+      ]
     },
     "androidStatusBar": {
       "backgroundColor": "#083F30",

@@ -291,6 +291,7 @@ export default function DriverHomeScreen({ navigation }: Props) {
                   joignable avant même le départ. */}
               {ride.client.phone ? (
                 <ContactActions
+                  bookingId={ride.id}
                   phone={ride.client.phone}
                   name={ride.client.fullName}
                   message={t("contact.message", {

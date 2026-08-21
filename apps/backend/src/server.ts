@@ -10,6 +10,7 @@ import bookingRoutes from "./routes/bookings.js";
 import driverRoutes from "./routes/drivers.js";
 import paymentRoutes from "./routes/payments.js";
 import adminRoutes from "./routes/admin.js";
+import callRoutes from "./routes/calls.js";
 
 const fastify = Fastify({
   logger: { level: process.env.LOG_LEVEL ?? "info" },
@@ -46,6 +47,7 @@ await fastify.register(bookingRoutes);
 await fastify.register(driverRoutes);
 await fastify.register(paymentRoutes);
 await fastify.register(adminRoutes);
+await fastify.register(callRoutes);
 
 const port = Number(process.env.PORT ?? 47001);
 

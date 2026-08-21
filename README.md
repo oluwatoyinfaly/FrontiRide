@@ -10,6 +10,7 @@ Plateforme de mise en relation pour le transport frontalier (Volet 1) et la loca
 - [`docs/plan-de-developpement.md`](docs/plan-de-developpement.md) — stack technique et phasage du MVP.
 - [`docs/charte-graphique.md`](docs/charte-graphique.md) — logo, couleurs, typographie, assets.
 - [`docs/builds-eas.md`](docs/builds-eas.md) — builds EAS, labels de PR, intégration continue.
+- [`docs/appels.md`](docs/appels.md) — appels client ↔ chauffeur : Agora, WhatsApp, téléphone.
 
 ## Structure du repo
 
@@ -98,7 +99,7 @@ Pense aussi à autoriser le port 47001 dans le pare-feu Windows — c'est la cau
 
 ```bash
 npm run typecheck   # backend + mobile + admin
-npm run smoke       # 40 assertions de bout en bout sur l'API
+npm run smoke       # 54 assertions de bout en bout sur l'API
 ```
 
 Le smoke test suppose une base fraîchement migrée et seedée — il consomme les données de démonstration.

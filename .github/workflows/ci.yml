@@ -28,6 +28,10 @@ jobs:
       DATABASE_URL: postgresql://frontiride:frontiride@localhost:5432/frontiride?schema=public
       JWT_SECRET: ci-secret
       APP_URL: http://localhost:47001
+      # Valeurs factices : la fabrication d'un jeton Agora est purement locale,
+      # elle n'appelle aucun service. Elles suffisent à tester le parcours.
+      AGORA_APP_ID: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      AGORA_APP_CERTIFICATE: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
       LOG_LEVEL: warn
 
     steps:

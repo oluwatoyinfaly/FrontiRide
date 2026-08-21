@@ -178,3 +178,38 @@ export interface DriverRide
   extends Omit<Booking, "driver" | "vehicle" | "role"> {
   client: { fullName: string | null; phone?: string };
 }
+
+/** Identifiants remis par l'API pour rejoindre le canal Agora d'une course. */
+export interface CallCredentials {
+  appId: string;
+  channel: string;
+  uid: number;
+  token: string;
+  expiresAt: string;
+}
+
+export type CallStatus =
+  | "RINGING"
+  | "ACCEPTED"
+  | "DECLINED"
+  | "ENDED"
+  | "MISSED";
+
+export interface Call {
+  id: string;
+  bookingId: string;
+  channel: string;
+  callerId: string;
+  calleeId: string;
+  status: CallStatus;
+  createdAt: string;
+}
+
+/** Sonnerie en attente, telle que /calls/incoming la décrit. */
+export interface IncomingCall {
+  id: string;
+  channel: string;
+  booking: { id: string; reference: string; type: BookingType };
+  caller: { fullName: string | null; phone: string | null };
+  createdAt: string;
+}

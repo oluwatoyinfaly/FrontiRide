@@ -153,6 +153,50 @@ check "le compte redevient un compte client" \
 check "un chauffeur avec des courses ne peut pas se retirer" \
   "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE $API/driver/register -H "Authorization: Bearer $DRIVER")" "409"
 
+echo "== Appel dans l'application =="
+# Sans clés Agora, le service se désactive proprement : l'API le dit, et le
+# mobile masque l'option au lieu de proposer un appel qui échouerait.
+ENABLED=$(curl -s $API/calls/config -H "Authorization: Bearer $CTOKEN" | j enabled)
+check "l'API annonce l'état du service" "$([ "$ENABLED" = "True" ] || [ "$ENABLED" = "False" ] && echo ok)" "ok"
+
+if [ "$ENABLED" = "True" ]; then
+  # $RIDE est la course que le chauffeur vient de conduire pour le client.
+  CALL=$(curl -s -X POST $API/calls -H "Authorization: Bearer $CTOKEN" \
+    -H 'Content-Type: application/json' -d "{\"bookingId\":\"$RIDE\"}")
+  CALL_ID=$(echo "$CALL" | j call.id)
+  check "appel créé" "$(echo "$CALL" | j call.status)" "RINGING"
+  check "jeton Agora délivré" \
+    "$([ "$(echo "$CALL" | j credentials.token | cut -c1-3)" = "007" ] && echo ok)" "ok"
+  check "canal dérivé de la course" "$(echo "$CALL" | j credentials.channel)" "booking-$RIDE"
+
+  check "deux appuis ne sonnent qu'une fois" \
+    "$(curl -s -X POST $API/calls -H "Authorization: Bearer $CTOKEN" \
+      -H 'Content-Type: application/json' -d "{\"bookingId\":\"$RIDE\"}" | j call.id)" "$CALL_ID"
+
+  check "le chauffeur voit la sonnerie" \
+    "$(curl -s $API/calls/incoming -H "Authorization: Bearer $DRIVER" | j id)" "$CALL_ID"
+  check "un tiers ne voit rien" \
+    "$(curl -s $API/calls/incoming -H "Authorization: Bearer $DRIVER2")" "null"
+
+  ACC=$(curl -s -X POST $API/calls/$CALL_ID/accept -H "Authorization: Bearer $DRIVER")
+  check "chaque partie a son propre identifiant Agora" \
+    "$([ "$(echo "$ACC" | j credentials.uid)" != "$(echo "$CALL" | j credentials.uid)" ] && echo ok)" "ok"
+  check "mais le même canal" "$(echo "$ACC" | j credentials.channel)" "booking-$RIDE"
+  check "appel décroché" "$(curl -s $API/calls/$CALL_ID -H "Authorization: Bearer $CTOKEN" | j status)" "ACCEPTED"
+  curl -s -X POST $API/calls/$CALL_ID/end -H "Authorization: Bearer $CTOKEN" > /dev/null
+  check "appel raccroché" "$(curl -s $API/calls/$CALL_ID -H "Authorization: Bearer $CTOKEN" | j status)" "ENDED"
+  check "plus de sonnerie en attente" \
+    "$(curl -s $API/calls/incoming -H "Authorization: Bearer $DRIVER")" "null"
+
+  check "un tiers ne peut pas appeler sur cette course" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/calls -H "Authorization: Bearer $TOKEN" \
+      -H 'Content-Type: application/json' -d "{\"bookingId\":\"$RIDE\"}")" "404"
+else
+  check "service désactivé : création refusée" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/calls -H "Authorization: Bearer $CTOKEN" \
+      -H 'Content-Type: application/json' -d "{\"bookingId\":\"$RIDE\"}")" "503"
+fi
+
 echo "== Régressions corrigées =="
 # Bug 1 : après une première location, le véhicule redevenait irréservable —
 # le test de chevauchement ne comparait que les dates de début.

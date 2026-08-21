@@ -38,6 +38,10 @@ services:
       # Adresse vue depuis l'extérieur du conteneur : c'est elle que Fedapay
       # rappelle, donc le port publié et non le port interne.
       APP_URL: http://localhost:${BACKEND_PORT:-47001}
+      # Vides par défaut : sans elles, l'appel dans l'application est
+      # simplement masqué côté mobile.
+      AGORA_APP_ID: ${AGORA_APP_ID:-}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
       FEDAPAY_ENV: sandbox
       FEDAPAY_SECRET_KEY: ${FEDAPAY_SECRET_KEY:-}
       PORT: 47001

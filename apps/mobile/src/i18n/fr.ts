@@ -110,15 +110,29 @@ export const fr = {
   },
 
   contact: {
-    call: "Appeler",
+    appCall: "Appel FrontiRide",
+    appCallHint: "Gratuit, par Internet",
+    call: "Appel téléphonique",
+    callHint: "Depuis votre forfait mobile",
+    callHintRoaming: "Hors forfait : l'autre partie est à l'étranger",
     whatsapp: "WhatsApp",
+    whatsappHint: "Message ou appel, par Internet",
     message:
       "Bonjour, je vous contacte au sujet de la course FrontiRide %{reference} (%{trip}).",
-    roamingHint:
-      "Trajet transfrontalier : WhatsApp passe par les données, l'appel classique part en itinérance.",
     whatsappUnavailable:
       "WhatsApp n'est pas disponible pour ce numéro. Utilisez l'appel téléphonique.",
     callFailed: "Impossible de lancer l'appel.",
+  },
+  call: {
+    ringing: "Sonnerie…",
+    incoming: "Appel entrant · %{reference}",
+    unknown: "Correspondant inconnu",
+    mute: "Micro",
+    speaker: "Haut-parleur",
+    declined: "Appel refusé",
+    missed: "Pas de réponse",
+    failed: "Appel impossible",
+    ended: "Appel terminé",
   },
   trips: {
     title: "Mes courses",
