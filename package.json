@@ -5,6 +5,7 @@
     "apps/*"
   ],
   "scripts": {
+    "start": "npm start --workspace apps/mobile",
     "dev:backend": "npm run dev --workspace apps/backend",
     "dev:admin": "npm run dev --workspace apps/admin",
     "dev:mobile": "npm run start --workspace apps/mobile",

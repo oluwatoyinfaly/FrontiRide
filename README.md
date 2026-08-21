@@ -69,9 +69,10 @@ Metro doit rester joignable depuis le téléphone, il tourne donc hors de Docker
 
 ```bash
 npm install
-cd apps/mobile
 npm start
 ```
+
+`npm start` à la racine délègue au workspace mobile. Ne lance **pas** `npx expo start` depuis la racine : le `package.json` racine n'a pas de champ `main`, Expo retombe alors sur `node_modules/expo/AppEntry.js` qui cherche un `App` à la racine et le bundling échoue sur `Unable to resolve "../../App"`. L'équivalent manuel est `cd apps/mobile && npx expo start`.
 
 Scanne le QR code avec Expo Go. L'app vise automatiquement la machine qui sert Metro sur le port 3001, donc **rien à configurer si le téléphone et le PC sont sur le même Wi-Fi**.
 
