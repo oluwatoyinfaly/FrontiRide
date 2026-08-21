@@ -24,16 +24,33 @@ docs/        Spécifications, charte et procédures
 
 ## Démarrage rapide
 
-### 1. Backend et base de données
+### 1. Base de données, API et back-office — une seule commande
 
 ```bash
 docker compose up --build
-docker compose exec backend npm run prisma:seed   # dans un autre terminal
 ```
 
-L'API écoute sur `http://localhost:3001` (`GET /health` pour vérifier). Le port hôte évite le 3000 souvent déjà pris ; change-le avec `BACKEND_PORT` si besoin.
+Trois services démarrent dans l'ordre : PostgreSQL, puis l'API (qui applique les migrations **et le seed** toute seule), puis le back-office une fois l'API en bonne santé.
 
-Le seed crée le corridor Cotonou ↔ Lomé, quatre chauffeurs (deux validés, deux à contrôler), un client et cinq réservations couvrant chaque état — de quoi voir le back-office rempli tout de suite.
+| Service | Adresse |
+|---|---|
+| API | http://localhost:3001 — `GET /health` pour vérifier |
+| Back-office | http://localhost:5173 |
+| PostgreSQL | `localhost:5432` |
+
+Si l'un de ces ports est déjà pris sur ta machine :
+
+```bash
+BACKEND_PORT=4000 ADMIN_PORT=5174 POSTGRES_PORT=5433 docker compose up --build
+```
+
+Sous PowerShell, les variables se passent autrement :
+
+```powershell
+$env:BACKEND_PORT=4000; docker compose up --build
+```
+
+Le seed crée le corridor Cotonou ↔ Lomé, quatre chauffeurs (deux validés, deux à contrôler), un client et cinq réservations couvrant chaque état — de quoi voir le back-office rempli dès le premier démarrage. Il est idempotent : le relancer ne duplique rien.
 
 | Compte de démonstration | Rôle |
 |---|---|
@@ -43,22 +60,28 @@ Le seed crée le corridor Cotonou ↔ Lomé, quatre chauffeurs (deux validés, d
 
 L'authentification se fait par code OTP double (email + SMS). **Hors production, l'API renvoie les codes dans sa réponse** et les interfaces les préremplissent : le parcours est donc testable sans passerelle SMS.
 
-### 2. Back-office administrateur
+### 2. Application mobile
+
+Metro doit rester joignable depuis le téléphone, il tourne donc hors de Docker :
 
 ```bash
-cd apps/admin
-cp .env.example .env
-npm install && npm run dev        # http://localhost:5173
-```
-
-### 3. Application mobile
-
-```bash
+npm install
 cd apps/mobile
-npm install && npm start
+npm start
 ```
 
-L'app vise automatiquement la machine qui sert Metro sur le port 3001 ; `EXPO_PUBLIC_API_URL` permet de forcer une autre adresse.
+Scanne le QR code avec Expo Go. L'app vise automatiquement la machine qui sert Metro sur le port 3001, donc **rien à configurer si le téléphone et le PC sont sur le même Wi-Fi**.
+
+Si la connexion à l'API échoue depuis le téléphone, force l'adresse avec l'IP locale de ta machine :
+
+```powershell
+# Windows : relève l'IPv4 de ton adaptateur Wi-Fi
+ipconfig | Select-String IPv4
+
+$env:EXPO_PUBLIC_API_URL="http://192.168.1.42:3001"; npm start
+```
+
+Pense aussi à autoriser le port 3001 dans le pare-feu Windows — c'est la cause la plus fréquente d'un téléphone qui ne joint pas l'API.
 
 ## Vérifications
 
