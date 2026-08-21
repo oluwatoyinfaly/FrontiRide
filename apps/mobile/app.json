@@ -2,6 +2,7 @@
   "expo": {
     "name": "FrontiRide",
     "slug": "frontiride",
+    "owner": "yindo",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",

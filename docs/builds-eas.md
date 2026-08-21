@@ -3,6 +3,24 @@
 Projet EAS : `36e54071-32b1-41ed-881e-08ba1ebe308b`, déclaré dans
 [`apps/mobile/app.json`](../apps/mobile/app.json) sous `extra.eas.projectId`.
 
+## Compte propriétaire du projet
+
+`app.json` déclare `"owner": "yindo"` : c'est le compte qui détient le projet
+EAS `36e54071-32b1-41ed-881e-08ba1ebe308b`. Un `eas build` lancé depuis un
+autre compte s'arrête avec :
+
+> Owner of project identified by "extra.eas.projectId" (yindo) does not match
+> the logged in user (…)
+
+Deux issues, selon l'intention :
+
+- **rester sur ce projet** (l'historique de builds, les mises à jour OTA et les
+  labels de PR y sont rattachés) : se connecter avec le bon compte,
+  `eas login`, ou faire du compte connecté un membre de `yindo` ;
+- **repartir sur un projet neuf** sous l'autre compte : `eas init`, qui écrit
+  un nouveau `projectId`. Il faut alors mettre à jour **aussi** `updates.url`
+  dans `app.json`, qui contient le même identifiant, et refaire les secrets EAS.
+
 ## Une précision sur la commande de départ
 
 La commande transmise créait un nouveau projet :
