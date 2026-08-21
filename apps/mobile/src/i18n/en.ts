@@ -116,6 +116,17 @@ export const en: Dictionary = {
     failed: "The payment did not go through.",
   },
 
+  contact: {
+    call: "Call",
+    whatsapp: "WhatsApp",
+    message:
+      "Hello, I'm reaching out about FrontiRide ride %{reference} (%{trip}).",
+    roamingHint:
+      "Cross-border trip: WhatsApp uses data, a regular call goes through roaming.",
+    whatsappUnavailable:
+      "WhatsApp isn't available for this number. Use a phone call instead.",
+    callFailed: "Could not start the call.",
+  },
   trips: {
     title: "My trips",
     empty: "No trips yet.",
@@ -124,7 +135,6 @@ export const en: Dictionary = {
     past: "Completed",
     driver: "Driver",
     noDriverYet: "Driver being assigned",
-    callDriver: "Call the driver",
     cancelTrip: "Cancel this trip",
     cancelConfirm: "Cancel this trip?",
     cancelConfirmBody:
@@ -144,7 +154,6 @@ export const en: Dictionary = {
     emptyFilter: "Nothing on that side yet.",
     client: "Rider",
     clientUnknown: "Rider",
-    callClient: "Call the rider",
   },
 
   status: {

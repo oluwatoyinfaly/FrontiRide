@@ -109,6 +109,17 @@ export const fr = {
     failed: "Le paiement n'a pas abouti.",
   },
 
+  contact: {
+    call: "Appeler",
+    whatsapp: "WhatsApp",
+    message:
+      "Bonjour, je vous contacte au sujet de la course FrontiRide %{reference} (%{trip}).",
+    roamingHint:
+      "Trajet transfrontalier : WhatsApp passe par les données, l'appel classique part en itinérance.",
+    whatsappUnavailable:
+      "WhatsApp n'est pas disponible pour ce numéro. Utilisez l'appel téléphonique.",
+    callFailed: "Impossible de lancer l'appel.",
+  },
   trips: {
     title: "Mes courses",
     empty: "Aucune course pour l'instant.",
@@ -117,7 +128,6 @@ export const fr = {
     past: "Terminées",
     driver: "Chauffeur",
     noDriverYet: "Chauffeur en cours d'attribution",
-    callDriver: "Appeler le chauffeur",
     cancelTrip: "Annuler la course",
     cancelConfirm: "Annuler cette course ?",
     cancelConfirmBody:
@@ -137,7 +147,6 @@ export const fr = {
     emptyFilter: "Aucune course de ce côté-là.",
     client: "Client",
     clientUnknown: "Client",
-    callClient: "Appeler le client",
   },
 
   status: {

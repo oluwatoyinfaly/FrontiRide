@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
-import { Alert, Linking, Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { TripsStackParamList } from "../navigation/types";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { ContactActions } from "../components/ContactActions";
 import { InfoRow, Loading, Notice } from "../components/Feedback";
 import { RoleBadge } from "../components/RoleBadge";
 import { Screen } from "../components/Screen";
@@ -41,6 +42,20 @@ export default function TripDetailScreen({ route, navigation }: Props) {
   }
 
   const price = booking.finalPriceFcfa ?? booking.estimatedPriceFcfa ?? 0;
+
+  const tripLabel = booking.trancon
+    ? `${booking.trancon.originCity} → ${booking.trancon.destinationCity}`
+    : `${t(`vehicleType.${booking.vehicleType}`)} · ${booking.city}`;
+
+  // Le message pré-rempli évite au chauffeur comme au client d'avoir à
+  // expliquer qui il est et de quelle course il parle.
+  const contactMessage = t("contact.message", {
+    reference: booking.reference,
+    trip: tripLabel,
+  });
+
+  // Sur le volet frontalier, l'un des deux interlocuteurs est à l'étranger.
+  const crossBorder = booking.type === "FRONTALIER";
 
   // Vu depuis le siège du chauffeur, cette course n'est ni à payer, ni à
   // annuler, ni à noter : ces actions appartiennent au client. La conduite
@@ -94,11 +109,7 @@ export default function TripDetailScreen({ route, navigation }: Props) {
         <StatusBadge status={booking.status} />
       </View>
 
-      <Text style={[text.title, { color: colors.text }]}>
-        {booking.trancon
-          ? `${booking.trancon.originCity} → ${booking.trancon.destinationCity}`
-          : `${t(`vehicleType.${booking.vehicleType}`)} · ${booking.city}`}
-      </Text>
+      <Text style={[text.title, { color: colors.text }]}>{tripLabel}</Text>
 
       <Card>
         {booking.trancon?.borderPoint ? (
@@ -192,10 +203,11 @@ export default function TripDetailScreen({ route, navigation }: Props) {
                   ) : null}
                 </View>
               </View>
-              <Button
-                label={t("trips.callDriver")}
-                variant="secondary"
-                onPress={() => Linking.openURL(`tel:${booking.driver!.user.phone}`)}
+              <ContactActions
+                phone={booking.driver.user.phone}
+                name={booking.driver.user.fullName}
+                message={contactMessage}
+                crossBorder={crossBorder}
               />
             </>
           ) : (
@@ -213,10 +225,11 @@ export default function TripDetailScreen({ route, navigation }: Props) {
             {booking.client?.fullName ?? t("trips.clientUnknown")}
           </Text>
           {booking.client?.phone ? (
-            <Button
-              label={t("trips.callClient")}
-              variant="secondary"
-              onPress={() => Linking.openURL(`tel:${booking.client!.phone}`)}
+            <ContactActions
+              phone={booking.client.phone}
+              name={booking.client.fullName}
+              message={contactMessage}
+              crossBorder={crossBorder}
             />
           ) : null}
         </Card>

@@ -86,6 +86,41 @@ Raison de ce découpage : valider d'abord que le tandem "réservation + paiement
 
 **Estimation globale MVP** : ~3-4 mois avec une petite équipe (1-2 devs mobile, 1-2 devs backend, 1 designer produit, à temps partiel un profil paiement/conformité).
 
+## 3 bis. Mise en relation client ↔ chauffeur
+
+Trois niveaux, du moins cher au plus engageant. Le premier est en place.
+
+**Niveau 1 — livré. Appel téléphonique et WhatsApp.** L'écran de détail d'une
+course et l'espace chauffeur ouvrent l'un ou l'autre en un geste, avec un
+message WhatsApp pré-rempli portant la référence et le trajet. Sur le volet
+frontalier, WhatsApp passe en premier : l'un des deux interlocuteurs est à
+l'étranger, l'appel classique part alors en itinérance quand WhatsApp passe par
+les données. Coût : nul. Limite : les deux numéros sont visibles en clair, et
+WhatsApp ne permet pas de déclencher un appel par lien — on ouvre la
+conversation, l'appel est à un bouton de là.
+
+**Niveau 2 — numéros masqués.** Le client appelle un numéro de service qui
+route vers le chauffeur, et inversement ; aucun des deux ne connaît le numéro
+de l'autre. C'est le standard du VTC, et la réponse à la question qu'on se
+posera vite : que se passe-t-il quand un chauffeur rappelle une cliente après
+la course ? Demande un compte CPaaS avec des numéros locaux BJ/TG (Twilio,
+Infobip, Africa's Talking) et une facturation à la minute. Le trafic reste sur
+le réseau téléphonique : rien à changer côté application, seulement le numéro
+composé.
+
+**Niveau 3 — appel dans l'application (VoIP).** L'appel passe par les données,
+sans numéro du tout. C'est le plus confortable et le seul qui supprime
+réellement l'itinérance. Il impose : un fournisseur temps réel (Agora, Twilio
+Voice SDK, LiveKit), un module natif — donc un **development build**, l'app ne
+tourne plus dans Expo Go —, la gestion des notifications push pour faire sonner
+un téléphone en veille (CallKit sur iOS, ConnectionService sur Android), et une
+qualité qui dépend du réseau mobile sur la route, souvent médiocre entre
+Cotonou et Lomé.
+
+Recommandation : garder le niveau 1 pour le pilote, passer au niveau 2 dès
+qu'un incident de confidentialité se présente, et ne financer le niveau 3 que
+si le volume d'appels le justifie.
+
 ## 4. Prochaines étapes immédiates
 
 1. Trancher les 5 points ouverts du cahier des charges (section 7).

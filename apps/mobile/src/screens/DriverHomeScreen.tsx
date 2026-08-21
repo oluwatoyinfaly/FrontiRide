@@ -6,7 +6,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { DriverStackParamList } from "../navigation/types";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
-import { ChoiceGroup } from "../components/ChoiceGroup";
+import { ContactActions } from "../components/ContactActions";
 import { EmptyState, InfoRow, Loading, Notice } from "../components/Feedback";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
@@ -248,6 +248,23 @@ export default function DriverHomeScreen({ navigation }: Props) {
           {activeRides.map((ride) => (
             <Card key={ride.id}>
               <RideSummary ride={ride} />
+
+              {/* Une course acceptée se prépare à deux : le passager doit être
+                  joignable avant même le départ. */}
+              {ride.client.phone ? (
+                <ContactActions
+                  phone={ride.client.phone}
+                  name={ride.client.fullName}
+                  message={t("contact.message", {
+                    reference: ride.reference,
+                    trip: ride.trancon
+                      ? `${ride.trancon.originCity} → ${ride.trancon.destinationCity}`
+                      : `${t(`vehicleType.${ride.vehicleType}`)} · ${ride.city}`,
+                  })}
+                  crossBorder={ride.type === "FRONTALIER"}
+                />
+              ) : null}
+
               <Button
                 label={
                   ride.status === "DRIVER_ASSIGNED"
