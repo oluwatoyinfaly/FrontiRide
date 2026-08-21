@@ -1,3 +1,5 @@
+// Doit précéder tout import qui lit process.env (Prisma, JWT…).
+import "./env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { ZodError } from "zod";
