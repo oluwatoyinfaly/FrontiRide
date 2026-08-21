@@ -91,7 +91,7 @@ Pense aussi à autoriser le port 3001 dans le pare-feu Windows — c'est la caus
 
 ```bash
 npm run typecheck   # backend + mobile + admin
-npm run smoke       # 23 assertions de bout en bout sur l'API
+npm run smoke       # 31 assertions de bout en bout sur l'API
 ```
 
 Le smoke test suppose une base fraîchement migrée et seedée — il consomme les données de démonstration.
@@ -99,10 +99,20 @@ Le smoke test suppose une base fraîchement migrée et seedée — il consomme l
 ## Démarrage manuel du backend (sans Docker)
 
 ```bash
+npm install            # à la racine : génère aussi le client Prisma
 cd apps/backend
 cp .env.example .env   # renseigner DATABASE_URL et FEDAPAY_SECRET_KEY
-npm install
 npm run prisma:migrate
 npm run prisma:seed
-npm run dev
+npm run dev            # http://localhost:3001
+```
+
+Le client Prisma est généré par le `postinstall` du backend. Si l'API démarre
+sur `SyntaxError: ... does not provide an export named 'PrismaClient'`, c'est
+qu'il manque : `npm run prisma:generate --workspace apps/backend`.
+
+Le back-office se lance à côté, depuis la racine :
+
+```bash
+npm run dev:admin      # http://localhost:5173
 ```
