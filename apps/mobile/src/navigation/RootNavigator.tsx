@@ -25,6 +25,7 @@ import TripsScreen from "../screens/TripsScreen";
 import TripDetailScreen from "../screens/TripDetailScreen";
 import RateScreen from "../screens/RateScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import BecomeDriverScreen from "../screens/BecomeDriverScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
 import DriverDocumentsScreen from "../screens/DriverDocumentsScreen";
 import DriverWalletScreen from "../screens/DriverWalletScreen";
@@ -157,6 +158,11 @@ function ProfileNavigator() {
         component={ProfileScreen}
         options={{ title: t("profile.title") }}
       />
+      <ProfileStack.Screen
+        name="BecomeDriver"
+        component={BecomeDriverScreen}
+        options={{ title: t("driver.becomeTitle") }}
+      />
     </ProfileStack.Navigator>
   );
 }
@@ -175,6 +181,12 @@ const TAB_ICONS: Record<
 function AppTabs() {
   const { colors, radius, text, isDark } = useTheme();
   const { t } = useI18n();
+  const { user } = useSession();
+
+  // L'espace chauffeur n'a de sens que pour qui a déposé une candidature :
+  // un client simple n'a pas à porter un onglet qui ne le concerne pas. Il
+  // trouve l'entrée « devenir chauffeur » dans son profil.
+  const isDriver = Boolean(user?.driverProfile);
 
   return (
     <Tabs.Navigator
@@ -229,11 +241,13 @@ function AppTabs() {
         component={TripsNavigator}
         options={{ title: t("tabs.trips") }}
       />
-      <Tabs.Screen
-        name="DriverTab"
-        component={DriverNavigator}
-        options={{ title: t("tabs.driver") }}
-      />
+      {isDriver ? (
+        <Tabs.Screen
+          name="DriverTab"
+          component={DriverNavigator}
+          options={{ title: t("tabs.driver") }}
+        />
+      ) : null}
       <Tabs.Screen
         name="ProfileTab"
         component={ProfileNavigator}

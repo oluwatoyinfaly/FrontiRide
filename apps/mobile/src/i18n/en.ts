@@ -136,6 +136,15 @@ export const en: Dictionary = {
     rateComment: "Comment (optional)",
     rateSubmit: "Send",
     alreadyRated: "You have already rated this trip.",
+    asClient: "Rider",
+    asDriver: "Driver",
+    filterAll: "All",
+    filterClient: "As rider",
+    filterDriver: "As driver",
+    emptyFilter: "Nothing on that side yet.",
+    client: "Rider",
+    clientUnknown: "Rider",
+    callClient: "Call the rider",
   },
 
   status: {
@@ -163,6 +172,13 @@ export const en: Dictionary = {
     becomeBody:
       "Take cross-border rides and full-day rentals. Your file is reviewed by our team before activation.",
     becomeCta: "Start my application",
+    becomeReversible:
+      "No commitment: as long as no ride is attached to it, the application can be withdrawn in one tap.",
+    cancelRegistration: "Withdraw my application",
+    cancelTitle: "Withdraw the application?",
+    cancelBody:
+      "The application and any documents already sent will be deleted. The account goes back to being a rider account.",
+    cancelConfirm: "Withdraw",
     baseCity: "Home city",
     offers: "I offer",
     offerFrontalier: "Cross-border rides",
@@ -225,5 +241,7 @@ export const en: Dictionary = {
     support: "Help and support",
     supportBody: "Write to us at support@frontiride.com",
     version: "Version %{version}",
+    accountClient: "Rider account",
+    accountDriver: "Driver account",
   },
 };

@@ -29,6 +29,7 @@ export type DriverStackParamList = {
 
 export type ProfileStackParamList = {
   Profile: undefined;
+  BecomeDriver: undefined;
 };
 
 export type TabParamList = {

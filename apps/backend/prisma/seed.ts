@@ -351,6 +351,12 @@ interface BookingSpec {
   ref: string;
   type: BookingType;
   status: BookingStatus;
+  /**
+   * Client de la course. Par défaut le compte de démonstration ; renseigné
+   * avec la clé d'un chauffeur, il montre un compte qui réserve aussi comme
+   * client — c'est ce cas que « Mes courses » distingue par une pastille.
+   */
+  clientKey?: string;
   driverKey?: string;
   tranconId?: string;
   vehicleKey?: string;
@@ -367,6 +373,36 @@ interface BookingSpec {
 }
 
 const BOOKINGS: BookingSpec[] = [
+  // --- Un chauffeur qui voyage comme client ---------------------------------
+  // Kofi conduit sur le corridor et réserve aussi pour lui : son écran
+  // « Mes courses » montre les deux rôles, filtre compris.
+  {
+    ref: "FR-60214",
+    type: "FRONTALIER",
+    status: "COMPLETED",
+    clientKey: "kofi",
+    driverKey: "amivi",
+    tranconId: "trancon-lome-cotonou",
+    departureDays: -9,
+    seats: 1,
+    price: 28000,
+    final: 28000,
+    payment: { status: "RELEASED", method: "MOMO_MTN" },
+    rating: { score: 5, comment: "Collègue de route, trajet impeccable." },
+  },
+  {
+    ref: "LV-60778",
+    type: "LOCATION_VILLE",
+    status: "CONFIRMED",
+    clientKey: "kofi",
+    driverKey: "mariam",
+    vehicleKey: "mariam-1",
+    startDays: 5,
+    durationDays: 1,
+    price: 78000,
+    payment: { status: "ESCROW_HELD", method: "MOMO_MOOV" },
+  },
+
   // --- Historique -----------------------------------------------------------
   {
     ref: "FR-10428",
@@ -561,6 +597,7 @@ async function main() {
 
   // --- Chauffeurs, véhicules, pièces, portefeuilles --------------------------
   const driverIds: Record<string, string> = {};
+  const driverUserIds: Record<string, string> = {};
   const vehicleIds: Record<string, string> = {};
 
   for (const spec of DRIVERS) {
@@ -593,6 +630,7 @@ async function main() {
       },
     });
     driverIds[spec.key] = driver.id;
+    driverUserIds[spec.key] = user.id;
 
     const provided = ALL_DOCUMENTS.slice(0, spec.documentsProvided ?? ALL_DOCUMENTS.length);
     for (const type of provided) {
@@ -654,7 +692,7 @@ async function main() {
       reference: spec.ref,
       type: spec.type,
       status: spec.status,
-      clientId: client.id,
+      clientId: spec.clientKey ? driverUserIds[spec.clientKey] : client.id,
       driverId: spec.driverKey ? driverIds[spec.driverKey] : null,
       vehicleId: spec.vehicleKey ? vehicleIds[spec.vehicleKey] : null,
       tranconId: spec.tranconId ?? null,

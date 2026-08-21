@@ -121,6 +121,38 @@ check "double notation refusée" "$(curl -s -o /dev/null -w '%{http_code}' -X PO
   -H "Authorization: Bearer $CTOKEN" -H 'Content-Type: application/json' -d '{"score":1}')" "409"
 
 
+echo "== Client, chauffeur, ou les deux =="
+# Un compte tout neuf n'a qu'un côté : toutes ses courses sont vues en client.
+ROLES=$(curl -s $API/bookings -H "Authorization: Bearer $TOKEN" \
+  | python3 -c 'import sys,json;print(",".join(sorted({b["role"] for b in json.load(sys.stdin)})))')
+check "un client simple ne voit que des courses client" "$ROLES" "CLIENT"
+
+# Kofi conduit et réserve : ses deux rôles doivent apparaître côte à côte.
+BOTH=$(curl -s $API/bookings -H "Authorization: Bearer $DRIVER" \
+  | python3 -c 'import sys,json;print(",".join(sorted({b["role"] for b in json.load(sys.stdin)})))')
+check "un chauffeur voit ses deux rôles" "$BOTH" "CLIENT,DRIVER"
+
+# La course qu'il conduit lui est accessible, et à lui seul.
+DRIVEN=$(curl -s $API/bookings -H "Authorization: Bearer $DRIVER" \
+  | python3 -c 'import sys,json;print(next(b["id"] for b in json.load(sys.stdin) if b["role"]=="DRIVER"))')
+check "le chauffeur ouvre le détail de sa course" \
+  "$(curl -s $API/bookings/$DRIVEN -H "Authorization: Bearer $DRIVER" | j role)" "DRIVER"
+check "un tiers ne voit pas cette course" \
+  "$(curl -s -o /dev/null -w '%{http_code}' $API/bookings/$DRIVEN -H "Authorization: Bearer $TOKEN")" "404"
+
+echo "== Candidature chauffeur, et son annulation =="
+check "candidature déposée" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/register \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"baseCity":"Cotonou","offersFrontalier":true}')" "201"
+check "l'espace chauffeur s'ouvre" \
+  "$(curl -s -o /dev/null -w '%{http_code}' $API/driver/me -H "Authorization: Bearer $TOKEN")" "200"
+check "candidature retirée" \
+  "$(curl -s -X DELETE $API/driver/register -H "Authorization: Bearer $TOKEN" | j ok)" "True"
+check "le compte redevient un compte client" \
+  "$(curl -s -o /dev/null -w '%{http_code}' $API/driver/me -H "Authorization: Bearer $TOKEN")" "403"
+check "un chauffeur avec des courses ne peut pas se retirer" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE $API/driver/register -H "Authorization: Bearer $DRIVER")" "409"
+
 echo "== Régressions corrigées =="
 # Bug 1 : après une première location, le véhicule redevenait irréservable —
 # le test de chevauchement ne comparait que les dates de début.

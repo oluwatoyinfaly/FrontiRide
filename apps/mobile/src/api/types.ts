@@ -98,8 +98,13 @@ export interface Rating {
   comment: string | null;
 }
 
+/** Côté depuis lequel l'utilisateur voit une course : il peut être les deux. */
+export type BookingRole = "CLIENT" | "DRIVER";
+
 export interface Booking {
   id: string;
+  role: BookingRole;
+  client: { fullName: string | null; phone?: string } | null;
   reference: string;
   type: BookingType;
   status: BookingStatus;
@@ -165,7 +170,11 @@ export interface DriverProfile {
   missingDocuments: DocumentType[];
 }
 
-/** Course telle que vue par le chauffeur : le client y est réduit au minimum. */
-export interface DriverRide extends Omit<Booking, "driver" | "vehicle"> {
+/**
+ * Course telle que vue depuis l'espace chauffeur. Les routes /driver/rides ne
+ * renvoient pas de rôle : de ce côté-là, il n'y a pas d'ambiguïté.
+ */
+export interface DriverRide
+  extends Omit<Booking, "driver" | "vehicle" | "role"> {
   client: { fullName: string | null; phone?: string };
 }

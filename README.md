@@ -56,13 +56,13 @@ Sous PowerShell, les variables se passent autrement :
 $env:BACKEND_PORT=48001; docker compose up --build
 ```
 
-Le seed remplit la base de quoi juger l'application dès le premier démarrage : 5 trançons du corridor, 10 chauffeurs couvrant les cinq états d'un dossier, 12 véhicules répartis sur les deux villes et les cinq gammes, 13 courses et 3 demandes de retrait. Il est idempotent : le relancer ne duplique rien.
+Le seed remplit la base de quoi juger l'application dès le premier démarrage : 5 trançons du corridor, 10 chauffeurs couvrant les cinq états d'un dossier, 12 véhicules répartis sur les deux villes et les cinq gammes, 15 courses et 3 demandes de retrait. Il est idempotent : le relancer ne duplique rien.
 
 | Compte de démonstration | Rôle | Ce qu'on y voit |
 |---|---|---|
 | `admin@frontiride.com` | Administrateur | 2 dossiers à contrôler, 5 paiements sous séquestre, 2 retraits à verser |
 | `client@example.com` | Client | 13 courses couvrant tous les états, dont 5 terminées et 4 notées |
-| `kofi.adjovi@example.com` | Chauffeur validé | Portefeuille garni, courses passées et à venir |
+| `kofi.adjovi@example.com` | Chauffeur validé | Portefeuille garni, et surtout les deux rôles : 4 courses conduites, 2 réservées comme client |
 | `rachid.ouedraogo@example.com` | Chauffeur incomplet | Dossier à 3 pièces sur 7 |
 
 **Connecte-toi avec `client@example.com` sur le mobile** : un compte tout neuf afficherait un historique vide, alors que celui-ci montre l'application vivante.
@@ -98,7 +98,7 @@ Pense aussi à autoriser le port 47001 dans le pare-feu Windows — c'est la cau
 
 ```bash
 npm run typecheck   # backend + mobile + admin
-npm run smoke       # 31 assertions de bout en bout sur l'API
+npm run smoke       # 40 assertions de bout en bout sur l'API
 ```
 
 Le smoke test suppose une base fraîchement migrée et seedée — il consomme les données de démonstration.

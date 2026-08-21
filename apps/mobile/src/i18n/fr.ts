@@ -129,6 +129,15 @@ export const fr = {
     rateComment: "Commentaire (facultatif)",
     rateSubmit: "Envoyer",
     alreadyRated: "Vous avez déjà noté cette course.",
+    asClient: "Client",
+    asDriver: "Chauffeur",
+    filterAll: "Toutes",
+    filterClient: "Comme client",
+    filterDriver: "Comme chauffeur",
+    emptyFilter: "Aucune course de ce côté-là.",
+    client: "Client",
+    clientUnknown: "Client",
+    callClient: "Appeler le client",
   },
 
   status: {
@@ -156,6 +165,13 @@ export const fr = {
     becomeBody:
       "Proposez vos courses frontalières et vos journées de location. Votre dossier est contrôlé par notre équipe avant activation.",
     becomeCta: "Créer mon dossier",
+    becomeReversible:
+      "Sans engagement : tant qu'aucune course n'est rattachée au dossier, il se retire en un geste.",
+    cancelRegistration: "Annuler ma candidature",
+    cancelTitle: "Annuler la candidature ?",
+    cancelBody:
+      "Le dossier et les pièces déjà envoyées seront supprimés. Le compte redevient un compte client.",
+    cancelConfirm: "Annuler la candidature",
     baseCity: "Ville de rattachement",
     offers: "Je propose",
     offerFrontalier: "Transport frontalier",
@@ -218,5 +234,7 @@ export const fr = {
     support: "Aide et support",
     supportBody: "Écrivez-nous à support@frontiride.com",
     version: "Version %{version}",
+    accountClient: "Compte client",
+    accountDriver: "Compte chauffeur",
   },
 } as const;

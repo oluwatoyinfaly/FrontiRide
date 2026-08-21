@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Alert, Linking, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { ProfileStackParamList } from "../navigation/types";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ChoiceGroup } from "../components/ChoiceGroup";
@@ -13,12 +15,15 @@ import { useI18n, type Locale } from "../i18n";
 import { useTheme } from "../theme";
 import { api } from "../api/client";
 
-export default function ProfileScreen() {
+type Props = NativeStackScreenProps<ProfileStackParamList, "Profile">;
+
+export default function ProfileScreen({ navigation }: Props) {
   const { colors, radius, space, text } = useTheme();
   const { t, locale, setLocale } = useI18n();
   const { user, signOut, refresh } = useSession();
 
   const [fullName, setFullName] = useState(user?.fullName ?? "");
+  const driverProfile = user?.driverProfile ?? null;
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -80,6 +85,42 @@ export default function ProfileScreen() {
               {user?.emailVerified ? t("profile.verified") : t("profile.notVerified")}
             </Text>
           </View>
+
+          {/* Le type de compte se lit d'un coup d'œil : c'est lui qui décide
+              de l'onglet Chauffeur et de ce que montrent « Mes courses ». */}
+          <View
+            style={{
+              alignSelf: "flex-start",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              paddingHorizontal: space[3],
+              paddingVertical: 2,
+              borderRadius: radius.pill,
+              backgroundColor: driverProfile
+                ? `${colors.brand}1A`
+                : colors.surfaceMuted,
+            }}
+          >
+            <Ionicons
+              name={driverProfile ? "car-sport" : "person"}
+              size={12}
+              color={driverProfile ? colors.brand : colors.textMuted}
+            />
+            <Text
+              style={[
+                text.caption,
+                {
+                  color: driverProfile ? colors.brand : colors.textMuted,
+                  fontWeight: "600",
+                },
+              ]}
+            >
+              {driverProfile
+                ? t("profile.accountDriver")
+                : t("profile.accountClient")}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -120,6 +161,25 @@ export default function ProfileScreen() {
           tone={notice === t("profile.saved") ? "success" : "error"}
         />
       ) : null}
+
+      {driverProfile ? null : (
+        <Card onPress={() => navigation.navigate("BecomeDriver")}>
+          <View
+            style={{ flexDirection: "row", alignItems: "center", gap: space[3] }}
+          >
+            <Ionicons name="car-sport" size={20} color={colors.brand} />
+            <View style={{ flex: 1 }}>
+              <Text style={[text.subheading, { color: colors.text }]}>
+                {t("driver.becomeTitle")}
+              </Text>
+              <Text style={[text.caption, { color: colors.textMuted }]}>
+                {t("driver.becomeReversible")}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
+          </View>
+        </Card>
+      )}
 
       <Card onPress={() => Linking.openURL("mailto:support@frontiride.com")}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: space[3] }}>

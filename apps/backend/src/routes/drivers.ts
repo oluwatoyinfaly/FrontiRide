@@ -66,6 +66,50 @@ export default async function driverRoutes(fastify: FastifyInstance) {
     return reply.code(201).send(driver);
   });
 
+  /**
+   * Renonce à devenir chauffeur. Tant que le dossier n'a servi à rien — aucune
+   * course, aucun gain — le compte redevient un simple compte client : c'est
+   * une candidature qu'on retire, pas un historique qu'on efface.
+   */
+  fastify.delete("/driver/register", asDriver, async (request, reply) => {
+    const driverId = request.driverId!;
+
+    const [rides, wallet] = await Promise.all([
+      fastify.prisma.booking.count({ where: { driverId } }),
+      fastify.prisma.driverWallet.findUnique({ where: { driverId } }),
+    ]);
+
+    if (rides > 0) {
+      return reply.code(409).send({
+        error: "Des courses sont rattachées à ce profil chauffeur",
+      });
+    }
+
+    if ((wallet?.balanceFcfa ?? 0) + (wallet?.pendingFcfa ?? 0) > 0) {
+      return reply
+        .code(409)
+        .send({ error: "Le portefeuille doit être vidé avant l'annulation" });
+    }
+
+    // Les relations n'ont pas de cascade en base : on les retire dans l'ordre
+    // inverse des dépendances, en une transaction.
+    await fastify.prisma.$transaction([
+      fastify.prisma.withdrawalRequest.deleteMany({
+        where: { wallet: { driverId } },
+      }),
+      fastify.prisma.document.deleteMany({ where: { driverId } }),
+      fastify.prisma.vehicle.deleteMany({ where: { driverId } }),
+      fastify.prisma.driverWallet.deleteMany({ where: { driverId } }),
+      fastify.prisma.driver.delete({ where: { id: driverId } }),
+      fastify.prisma.user.update({
+        where: { id: request.user.userId },
+        data: { role: "CLIENT" },
+      }),
+    ]);
+
+    return reply.send({ ok: true });
+  });
+
   fastify.get("/driver/me", asDriver, async (request, reply) => {
     const driver = await fastify.prisma.driver.findUnique({
       where: { id: request.driverId },

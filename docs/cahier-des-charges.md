@@ -35,6 +35,13 @@ FrontiRide met en relation :
 10. Abonnement optionnel (Pass Découverte / Pro / Entreprise).
 
 ### 2.2 Chauffeur / Agence
+
+Un chauffeur est d'abord un client : le compte est le même, on y ajoute une
+candidature. Tant qu'aucune course n'y est rattachée, cette candidature se
+retire et le compte redevient un simple compte client. L'espace chauffeur
+n'apparaît dans l'application que pour qui en a déposé une, et « Mes courses »
+distingue par une pastille les courses réservées de celles conduites.
+
 1. Inscription (email + téléphone), OTP.
 2. Vérification obligatoire : CNI, permis, carte grise, assurance, visite technique, casier judiciaire, photo du véhicule et du profil.
 3. Déclare son offre : Frontalier et/ou Location Ville ; profil véhicule (type, places, photos, prix/jour) ; option flotte multi-véhicules pour les agences.

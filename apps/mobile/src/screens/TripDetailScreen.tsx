@@ -7,6 +7,7 @@ import type { TripsStackParamList } from "../navigation/types";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { InfoRow, Loading, Notice } from "../components/Feedback";
+import { RoleBadge } from "../components/RoleBadge";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { useI18n } from "../i18n";
@@ -40,9 +41,15 @@ export default function TripDetailScreen({ route, navigation }: Props) {
   }
 
   const price = booking.finalPriceFcfa ?? booking.estimatedPriceFcfa ?? 0;
-  const canCancel = CANCELLABLE.includes(booking.status);
-  const canPay = booking.status === "AWAITING_PAYMENT";
-  const canRate = booking.status === "COMPLETED" && !booking.rating && booking.driver;
+
+  // Vu depuis le siège du chauffeur, cette course n'est ni à payer, ni à
+  // annuler, ni à noter : ces actions appartiennent au client. La conduite
+  // se pilote depuis l'espace chauffeur.
+  const asClient = booking.role === "CLIENT";
+  const canCancel = asClient && CANCELLABLE.includes(booking.status);
+  const canPay = asClient && booking.status === "AWAITING_PAYMENT";
+  const canRate =
+    asClient && booking.status === "COMPLETED" && !booking.rating && booking.driver;
 
   function confirmCancel() {
     Alert.alert(t("trips.cancelConfirm"), t("trips.cancelConfirmBody"), [
@@ -78,9 +85,12 @@ export default function TripDetailScreen({ route, navigation }: Props) {
           alignItems: "center",
         }}
       >
-        <Text style={[text.caption, { color: colors.textFaint }]}>
-          {booking.reference}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
+          <Text style={[text.caption, { color: colors.textFaint }]}>
+            {booking.reference}
+          </Text>
+          <RoleBadge role={booking.role} />
+        </View>
         <StatusBadge status={booking.status} />
       </View>
 
@@ -144,55 +154,73 @@ export default function TripDetailScreen({ route, navigation }: Props) {
         </View>
       </Card>
 
-      <Card>
-        <Text style={[text.label, { color: colors.textMuted }]}>
-          {t("trips.driver")}
-        </Text>
-        {booking.driver ? (
-          <>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: space[3] }}
-            >
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: radius.pill,
-                  backgroundColor: colors.surfaceMuted,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="person" size={22} color={colors.textMuted} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[text.subheading, { color: colors.text }]}>
-                  {booking.driver.user.fullName}
-                </Text>
-                {booking.driver.ratingAverage > 0 ? (
-                  <View
-                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                  >
-                    <Ionicons name="star" size={12} color={colors.accent} />
-                    <Text style={[text.caption, { color: colors.textMuted }]}>
-                      {booking.driver.ratingAverage.toFixed(1)}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-            <Button
-              label={t("trips.callDriver")}
-              variant="secondary"
-              onPress={() => Linking.openURL(`tel:${booking.driver!.user.phone}`)}
-            />
-          </>
-        ) : (
-          <Text style={[text.body, { color: colors.textMuted }]}>
-            {t("trips.noDriverYet")}
+      {asClient ? (
+        <Card>
+          <Text style={[text.label, { color: colors.textMuted }]}>
+            {t("trips.driver")}
           </Text>
-        )}
-      </Card>
+          {booking.driver ? (
+            <>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: space[3] }}
+              >
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.surfaceMuted,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="person" size={22} color={colors.textMuted} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[text.subheading, { color: colors.text }]}>
+                    {booking.driver.user.fullName}
+                  </Text>
+                  {booking.driver.ratingAverage > 0 ? (
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                    >
+                      <Ionicons name="star" size={12} color={colors.accent} />
+                      <Text style={[text.caption, { color: colors.textMuted }]}>
+                        {booking.driver.ratingAverage.toFixed(1)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+              <Button
+                label={t("trips.callDriver")}
+                variant="secondary"
+                onPress={() => Linking.openURL(`tel:${booking.driver!.user.phone}`)}
+              />
+            </>
+          ) : (
+            <Text style={[text.body, { color: colors.textMuted }]}>
+              {t("trips.noDriverYet")}
+            </Text>
+          )}
+        </Card>
+      ) : (
+        <Card>
+          <Text style={[text.label, { color: colors.textMuted }]}>
+            {t("trips.client")}
+          </Text>
+          <Text style={[text.subheading, { color: colors.text }]}>
+            {booking.client?.fullName ?? t("trips.clientUnknown")}
+          </Text>
+          {booking.client?.phone ? (
+            <Button
+              label={t("trips.callClient")}
+              variant="secondary"
+              onPress={() => Linking.openURL(`tel:${booking.client!.phone}`)}
+            />
+          ) : null}
+        </Card>
+      )}
 
       {booking.rating ? (
         <Card>

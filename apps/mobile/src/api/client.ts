@@ -198,6 +198,10 @@ export const api = {
     offersLocationVille: boolean;
   }) => post<{ id: string }>("/driver/register", input),
 
+  /** Retire une candidature chauffeur : le compte redevient un compte client. */
+  driverCancelRegistration: () =>
+    request<{ ok: boolean }>("/driver/register", { method: "DELETE" }),
+
   driverMe: () => request<DriverProfile>("/driver/me"),
 
   driverSetOnline: (isOnline: boolean) =>
