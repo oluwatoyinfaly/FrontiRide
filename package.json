@@ -5,6 +5,7 @@
     "apps/*"
   ],
   "scripts": {
+    "setup:env": "node scripts/setup-env.mjs",
     "start": "npm start --workspace apps/mobile",
     "dev:backend": "npm run dev --workspace apps/backend",
     "dev:admin": "npm run dev --workspace apps/admin",

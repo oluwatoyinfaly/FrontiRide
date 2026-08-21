@@ -6,7 +6,7 @@
 # téléphone, il tourne donc directement sur la machine (voir README).
 #
 # Les ports côté hôte sont configurables si l'un d'eux est déjà pris :
-#   BACKEND_PORT=4000 ADMIN_PORT=5174 POSTGRES_PORT=5433 docker compose up
+#   BACKEND_PORT=48001 ADMIN_PORT=48005 POSTGRES_PORT=48432 docker compose up
 
 services:
   postgres:
@@ -16,7 +16,7 @@ services:
       POSTGRES_PASSWORD: frontiride
       POSTGRES_DB: frontiride
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-47432}:5432"
     volumes:
       - frontiride_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -37,18 +37,18 @@ services:
       JWT_SECRET: dev-secret-change-me
       # Adresse vue depuis l'extérieur du conteneur : c'est elle que Fedapay
       # rappelle, donc le port publié et non le port interne.
-      APP_URL: http://localhost:${BACKEND_PORT:-3001}
+      APP_URL: http://localhost:${BACKEND_PORT:-47001}
       FEDAPAY_ENV: sandbox
       FEDAPAY_SECRET_KEY: ${FEDAPAY_SECRET_KEY:-}
-      PORT: 3000
+      PORT: 47001
     ports:
-      - "${BACKEND_PORT:-3001}:3000"
+      - "${BACKEND_PORT:-47001}:47001"
     volumes:
       - ./apps/backend/src:/app/apps/backend/src
       - ./apps/backend/prisma:/app/apps/backend/prisma
     healthcheck:
       test:
-        ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+        ["CMD-SHELL", "node -e \"fetch('http://localhost:47001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -64,9 +64,9 @@ services:
     environment:
       # Lue par le navigateur, pas par le conteneur : c'est donc l'adresse
       # publiée sur la machine hôte, jamais le nom de service Docker.
-      VITE_API_URL: http://localhost:${BACKEND_PORT:-3001}
+      VITE_API_URL: http://localhost:${BACKEND_PORT:-47001}
     ports:
-      - "${ADMIN_PORT:-5173}:5173"
+      - "${ADMIN_PORT:-47005}:47005"
     volumes:
       - ./apps/admin/src:/app/apps/admin/src
       - ./apps/admin/index.html:/app/apps/admin/index.html

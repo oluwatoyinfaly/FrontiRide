@@ -34,20 +34,26 @@ Trois services démarrent dans l'ordre : PostgreSQL, puis l'API (qui applique le
 
 | Service | Adresse |
 |---|---|
-| API | http://localhost:3001 — `GET /health` pour vérifier |
-| Back-office | http://localhost:5173 |
-| PostgreSQL | `localhost:5432` |
+| API | http://localhost:47001 — `GET /health` pour vérifier |
+| Back-office | http://localhost:47005 |
+| PostgreSQL | `localhost:47432` |
+| Metro (mobile, hors Docker) | `localhost:47081` |
+
+Le projet occupe le bloc **47000-47099**, volontairement à l'écart des ports de
+développement habituels (3000, 5432, 5173, 8081) et sous la plage dynamique de
+Windows (49152-65535) que le système attribue tout seul : rien ne devrait entrer
+en conflit avec ce qui tourne déjà sur ta machine.
 
 Si l'un de ces ports est déjà pris sur ta machine :
 
 ```bash
-BACKEND_PORT=4000 ADMIN_PORT=5174 POSTGRES_PORT=5433 docker compose up --build
+BACKEND_PORT=48001 ADMIN_PORT=48005 POSTGRES_PORT=48432 docker compose up --build
 ```
 
 Sous PowerShell, les variables se passent autrement :
 
 ```powershell
-$env:BACKEND_PORT=4000; docker compose up --build
+$env:BACKEND_PORT=48001; docker compose up --build
 ```
 
 Le seed remplit la base de quoi juger l'application dès le premier démarrage : 5 trançons du corridor, 10 chauffeurs couvrant les cinq états d'un dossier, 12 véhicules répartis sur les deux villes et les cinq gammes, 13 courses et 3 demandes de retrait. Il est idempotent : le relancer ne duplique rien.
@@ -69,12 +75,13 @@ Metro doit rester joignable depuis le téléphone, il tourne donc hors de Docker
 
 ```bash
 npm install
+npm run setup:env   # crée les .env locaux (une seule fois)
 npm start
 ```
 
 `npm start` à la racine délègue au workspace mobile. Ne lance **pas** `npx expo start` depuis la racine : le `package.json` racine n'a pas de champ `main`, Expo retombe alors sur `node_modules/expo/AppEntry.js` qui cherche un `App` à la racine et le bundling échoue sur `Unable to resolve "../../App"`. L'équivalent manuel est `cd apps/mobile && npx expo start`.
 
-Scanne le QR code avec Expo Go. L'app vise automatiquement la machine qui sert Metro sur le port 3001, donc **rien à configurer si le téléphone et le PC sont sur le même Wi-Fi**.
+Scanne le QR code avec Expo Go. L'app vise automatiquement la machine qui sert Metro sur le port 47001, donc **rien à configurer si le téléphone et le PC sont sur le même Wi-Fi**.
 
 Si la connexion à l'API échoue depuis le téléphone, force l'adresse avec l'IP locale de ta machine :
 
@@ -82,10 +89,10 @@ Si la connexion à l'API échoue depuis le téléphone, force l'adresse avec l'I
 # Windows : relève l'IPv4 de ton adaptateur Wi-Fi
 ipconfig | Select-String IPv4
 
-$env:EXPO_PUBLIC_API_URL="http://192.168.1.42:3001"; npm start
+$env:EXPO_PUBLIC_API_URL="http://192.168.1.42:47001"; npm start
 ```
 
-Pense aussi à autoriser le port 3001 dans le pare-feu Windows — c'est la cause la plus fréquente d'un téléphone qui ne joint pas l'API.
+Pense aussi à autoriser le port 47001 dans le pare-feu Windows — c'est la cause la plus fréquente d'un téléphone qui ne joint pas l'API.
 
 ## Vérifications
 
@@ -100,11 +107,11 @@ Le smoke test suppose une base fraîchement migrée et seedée — il consomme l
 
 ```bash
 npm install            # à la racine : génère aussi le client Prisma
+npm run setup:env      # crée apps/backend/.env depuis l'exemple
 cd apps/backend
-cp .env.example .env   # renseigner DATABASE_URL et FEDAPAY_SECRET_KEY
 npm run prisma:migrate
 npm run prisma:seed
-npm run dev            # http://localhost:3001
+npm run dev            # http://localhost:47001
 ```
 
 Le client Prisma est généré par le `postinstall` du backend. Si l'API démarre
@@ -114,5 +121,5 @@ qu'il manque : `npm run prisma:generate --workspace apps/backend`.
 Le back-office se lance à côté, depuis la racine :
 
 ```bash
-npm run dev:admin      # http://localhost:5173
+npm run dev:admin      # http://localhost:47005
 ```

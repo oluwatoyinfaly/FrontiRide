@@ -4,11 +4,11 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "android": "expo start --android",
+    "android": "expo start --android --port 47081",
     "check:i18n": "node scripts/check-i18n.mjs",
-    "ios": "expo start --ios",
+    "ios": "expo start --ios --port 47081",
     "prebuild": "expo prebuild --clean",
-    "start": "expo start"
+    "start": "expo start --port 47081"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",

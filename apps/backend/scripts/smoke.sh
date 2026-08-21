@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Test de bout en bout de l'API FrontiRide.
-# Usage : API=http://localhost:3001 bash scripts/smoke.sh
+# Usage : API=http://localhost:47001 bash scripts/smoke.sh
 # Suppose une base fraîchement migrée + seedée (npm run prisma:seed).
-API=${API:-http://localhost:3001}
+API=${API:-http://localhost:47001}
 HERE=$(dirname "$0")
 j() { python3 "$HERE/jsonpath.py" "$1"; }
 fail=0

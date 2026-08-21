@@ -47,7 +47,7 @@ await fastify.register(driverRoutes);
 await fastify.register(paymentRoutes);
 await fastify.register(adminRoutes);
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env.PORT ?? 47001);
 
 try {
   await fastify.listen({ port, host: "0.0.0.0" });

@@ -8,6 +8,9 @@
  * Idempotent : toutes les écritures sont des upserts sur des identifiants
  * fixes, donc relancer le seed ne duplique rien.
  */
+// Lancé par `tsx`, ce script ne bénéficie pas du chargement de .env fait par
+// la CLI Prisma : il le fait donc lui-même, avant de créer le client.
+import "../src/env.js";
 import {
   PrismaClient,
   type BookingStatus,

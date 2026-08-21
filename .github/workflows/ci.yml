@@ -27,7 +27,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://frontiride:frontiride@localhost:5432/frontiride?schema=public
       JWT_SECRET: ci-secret
-      APP_URL: http://localhost:3000
+      APP_URL: http://localhost:47001
       LOG_LEVEL: warn
 
     steps:
@@ -49,13 +49,13 @@ jobs:
           npm run prisma:seed
           node dist/server.js &
           for i in $(seq 1 30); do
-            curl -sf http://localhost:3000/health && break
+            curl -sf http://localhost:47001/health && break
             sleep 1
           done
 
       - name: Tests de bout en bout
         working-directory: apps/backend
-        run: API=http://localhost:3000 bash scripts/smoke.sh
+        run: API=http://localhost:47001 bash scripts/smoke.sh
 
   mobile:
     name: Mobile — types et traductions

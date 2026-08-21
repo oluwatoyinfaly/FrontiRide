@@ -11,6 +11,9 @@ import type {
   VehicleType,
 } from "./types";
 
+/** Port de l'API, hors des ports de développement usuels (voir README). */
+const API_PORT = 47001;
+
 /**
  * URL du backend. En développement on vise par défaut la machine qui sert
  * Metro : c'est presque toujours celle qui fait aussi tourner l'API, et ça
@@ -21,7 +24,7 @@ function defaultApiUrl(): string {
   if (configured) return configured;
 
   const host = Constants.expoConfig?.hostUri?.split(":")[0];
-  return host ? `http://${host}:3001` : "http://localhost:3001";
+  return host ? `http://${host}:${API_PORT}` : `http://localhost:${API_PORT}`;
 }
 
 export const API_URL = defaultApiUrl();
