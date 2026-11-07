@@ -14,9 +14,6 @@
       "ios": {
         "image": "latest",
         "simulator": true
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:47001"
       }
     },
     "preview": {
