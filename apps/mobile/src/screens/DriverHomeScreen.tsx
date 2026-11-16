@@ -261,6 +261,26 @@ export default function DriverHomeScreen({ navigation }: Props) {
         )}
       </Card>
 
+      {/* Sans véhicule déclaré, un chauffeur qui propose la location en ville
+          n'apparaît nulle part dans le catalogue : l'entrée doit se voir. */}
+      <Card onPress={() => navigation.navigate("DriverVehicles")}>
+        <View
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+        >
+          <View style={{ flex: 1, gap: space[1] }}>
+            <Text style={[text.label, { color: colors.textMuted }]}>
+              {t("driver.vehicles")}
+            </Text>
+            <Text style={[text.body, { color: colors.text }]}>
+              {profile.vehicles.length === 0
+                ? t("driver.noVehicles")
+                : t("driver.vehiclesCount", { count: profile.vehicles.length })}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
+        </View>
+      </Card>
+
       <Card onPress={() => navigation.navigate("DriverWallet")}>
         <Text style={[text.label, { color: colors.textMuted }]}>
           {t("driver.wallet")}

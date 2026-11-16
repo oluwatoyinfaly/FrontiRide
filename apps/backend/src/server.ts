@@ -11,6 +11,7 @@ import driverRoutes from "./routes/drivers.js";
 import paymentRoutes from "./routes/payments.js";
 import adminRoutes from "./routes/admin.js";
 import callRoutes from "./routes/calls.js";
+import fileRoutes from "./routes/files.js";
 
 const fastify = Fastify({
   logger: { level: process.env.LOG_LEVEL ?? "info" },
@@ -48,6 +49,7 @@ await fastify.register(driverRoutes);
 await fastify.register(paymentRoutes);
 await fastify.register(adminRoutes);
 await fastify.register(callRoutes);
+await fastify.register(fileRoutes);
 
 const port = Number(process.env.PORT ?? 47001);
 

@@ -1,6 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { COMMISSION_RATE, driverEarnings } from "../lib/pricing.js";
+import { STORED_URL, removeStoredFile, uploadDir } from "./files.js";
+import { access } from "node:fs/promises";
+import path from "node:path";
 
 const DOCUMENT_TYPES = [
   "CNI",
@@ -25,7 +28,10 @@ const registerSchema = z.object({
 
 const documentSchema = z.object({
   type: z.enum(DOCUMENT_TYPES),
-  fileUrl: z.string().url(),
+  // Uniquement une pièce déjà téléversée par POST /uploads : une adresse
+  // quelconque — pire, un chemin local du téléphone comme file:///… — ne
+  // serait lisible par personne, l'admin le premier.
+  fileUrl: z.string().regex(STORED_URL, "Pièce non téléversée"),
 });
 
 const vehicleSchema = z.object({
@@ -91,6 +97,11 @@ export default async function driverRoutes(fastify: FastifyInstance) {
         .send({ error: "Le portefeuille doit être vidé avant l'annulation" });
     }
 
+    const documents = await fastify.prisma.document.findMany({
+      where: { driverId },
+      select: { fileUrl: true },
+    });
+
     // Les relations n'ont pas de cascade en base : on les retire dans l'ordre
     // inverse des dépendances, en une transaction.
     await fastify.prisma.$transaction([
@@ -106,6 +117,10 @@ export default async function driverRoutes(fastify: FastifyInstance) {
         data: { role: "CLIENT" },
       }),
     ]);
+
+    // Après la transaction seulement : si elle échoue, les pièces restent
+    // rattachées à un dossier qui existe encore.
+    await Promise.all(documents.map((d) => removeStoredFile(d.fileUrl)));
 
     return reply.send({ ok: true });
   });
@@ -133,6 +148,20 @@ export default async function driverRoutes(fastify: FastifyInstance) {
   fastify.post("/driver/documents", asDriver, async (request, reply) => {
     const body = documentSchema.parse(request.body);
 
+    // Le fichier doit exister : on n'enregistre pas une référence dans le vide.
+    try {
+      await access(path.join(uploadDir(), path.basename(body.fileUrl)));
+    } catch {
+      return reply.code(400).send({ error: "Pièce introuvable : téléversez-la d'abord" });
+    }
+
+    const previous = await fastify.prisma.document.findUnique({
+      where: {
+        driverId_type: { driverId: request.driverId!, type: body.type },
+      },
+      select: { fileUrl: true },
+    });
+
     // Re-téléverser une pièce la remplace et la remet en attente de contrôle.
     const document = await fastify.prisma.document.upsert({
       where: {
@@ -145,6 +174,12 @@ export default async function driverRoutes(fastify: FastifyInstance) {
         fileUrl: body.fileUrl,
       },
     });
+
+    // L'ancienne pièce n'a plus de raison d'exister : c'est un document
+    // d'identité, on ne le garde pas sur le disque sans nécessité.
+    if (previous && previous.fileUrl !== body.fileUrl) {
+      await removeStoredFile(previous.fileUrl);
+    }
 
     const documents = await fastify.prisma.document.findMany({
       where: { driverId: request.driverId },
@@ -172,6 +207,31 @@ export default async function driverRoutes(fastify: FastifyInstance) {
       data: { driverId: request.driverId!, ...body },
     });
     return reply.code(201).send(vehicle);
+  });
+
+  /**
+   * Retire un véhicule. Refusé dès qu'une course s'y rattache : l'historique
+   * d'une réservation doit continuer à nommer le véhicule qui l'a assurée.
+   */
+  fastify.delete("/driver/vehicles/:id", asDriver, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+
+    const vehicle = await fastify.prisma.vehicle.findFirst({
+      where: { id, driverId: request.driverId },
+      select: { id: true, _count: { select: { bookings: true } } },
+    });
+
+    if (!vehicle) {
+      return reply.code(404).send({ error: "Véhicule introuvable" });
+    }
+    if (vehicle._count.bookings > 0) {
+      return reply
+        .code(409)
+        .send({ error: "Des courses sont rattachées à ce véhicule" });
+    }
+
+    await fastify.prisma.vehicle.delete({ where: { id } });
+    return reply.send({ ok: true });
   });
 
   fastify.patch("/driver/status", asDriver, async (request, reply) => {

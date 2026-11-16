@@ -24,7 +24,17 @@ import {
 
 const prisma = new PrismaClient();
 
-const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@frontiride.com";
+/**
+ * SEED_DEMO=false ne crée que le strict nécessaire à un vrai fonctionnement :
+ * le catalogue de trançons et, si SEED_ADMIN_EMAIL est donné, le compte
+ * administrateur — sans lui personne ne peut valider un chauffeur. Aucun faux
+ * chauffeur, client ni course. Par défaut (« true ») le jeu de démonstration
+ * complet est créé, comme en développement local.
+ */
+const DEMO = process.env.SEED_DEMO !== "false";
+
+const ADMIN_EMAIL =
+  process.env.SEED_ADMIN_EMAIL ?? (DEMO ? "admin@frontiride.com" : undefined);
 const CLIENT_EMAIL = process.env.SEED_CLIENT_EMAIL ?? "client@example.com";
 /**
  * Kofi Adjovi : le chauffeur qui réserve aussi comme client, donc celui qui
@@ -580,28 +590,45 @@ const WITHDRAWALS = [
 
 async function main() {
   // --- Administrateur -------------------------------------------------------
-  const admin = await prisma.user.upsert({
-    where: { email: ADMIN_EMAIL },
-    update: { role: "ADMIN" },
-    create: {
-      id: "seed-admin",
-      email: ADMIN_EMAIL,
-      phone: "+22900000000",
-      fullName: "Administration FrontiRide",
-      role: "ADMIN",
-      emailVerified: true,
-      phoneVerified: true,
-    },
-  });
+  // Hors démonstration, l'adresse doit être fournie : une adresse par défaut
+  // créerait un compte administrateur que personne ne contrôle.
+  const admin = ADMIN_EMAIL
+    ? await prisma.user.upsert({
+        where: { email: ADMIN_EMAIL },
+        update: { role: "ADMIN" },
+        create: {
+          id: "seed-admin",
+          email: ADMIN_EMAIL,
+          phone: "+22900000000",
+          fullName: "Administration FrontiRide",
+          role: "ADMIN",
+          emailVerified: true,
+          phoneVerified: true,
+        },
+      })
+    : null;
 
   // --- Trançons -------------------------------------------------------------
+  // En production réelle l'admin les ajuste depuis le back-office : un
+  // redémarrage ne doit surtout pas lui remettre les prix d'origine.
   for (const trancon of TRONCONS) {
     await prisma.trancon.upsert({
       where: { id: trancon.id },
-      update: trancon,
+      update: DEMO ? trancon : {},
       create: trancon,
     });
   }
+
+  if (!DEMO) {
+    console.log(`Seed terminé (sans données de démonstration).
+
+  Administrateur  ${admin ? admin.email : "AUCUN — définir SEED_ADMIN_EMAIL"}
+  Trançons        ${TRONCONS.length}`);
+    return;
+  }
+
+  // La démonstration implique toujours un administrateur.
+  if (!admin) throw new Error("Administrateur manquant");
 
   // --- Chauffeurs, véhicules, pièces, portefeuilles --------------------------
   const driverIds: Record<string, string> = {};

@@ -33,6 +33,7 @@ export type DriverStackParamList = {
   DriverHome: undefined;
   DriverDocuments: undefined;
   DriverWallet: undefined;
+  DriverVehicles: undefined;
 };
 
 export type ProfileStackParamList = {

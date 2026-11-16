@@ -126,9 +126,13 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         fastify.log.warn("Webhook Fedapay avec signature invalide, ignoré");
         return reply.code(401).send({ error: "Signature invalide" });
       }
-    } else if (process.env.NODE_ENV === "production") {
-      fastify.log.error("FEDAPAY_WEBHOOK_SECRET manquant en production");
-      return reply.code(500).send({ error: "Webhook non configuré" });
+    } else {
+      // Sans secret on ne peut pas distinguer Fedapay d'un inconnu : accepter
+      // l'appel reviendrait à laisser n'importe qui déclarer un paiement
+      // réglé. C'était toléré hors production ; sur un déploiement de test
+      // public, ça ne l'est pas. Le paiement en espèces n'en dépend pas.
+      fastify.log.error("FEDAPAY_WEBHOOK_SECRET manquant : webhook refusé");
+      return reply.code(503).send({ error: "Webhook non configuré" });
     }
 
     const event = z

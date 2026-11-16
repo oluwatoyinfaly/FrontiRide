@@ -29,6 +29,7 @@ import BecomeDriverScreen from "../screens/BecomeDriverScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
 import DriverDocumentsScreen from "../screens/DriverDocumentsScreen";
 import DriverWalletScreen from "../screens/DriverWalletScreen";
+import DriverVehiclesScreen from "../screens/DriverVehiclesScreen";
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -142,6 +143,11 @@ function DriverNavigator() {
         name="DriverWallet"
         component={DriverWalletScreen}
         options={{ title: t("driver.wallet") }}
+      />
+      <DriverStack.Screen
+        name="DriverVehicles"
+        component={DriverVehiclesScreen}
+        options={{ title: t("driver.vehicles") }}
       />
     </DriverStack.Navigator>
   );

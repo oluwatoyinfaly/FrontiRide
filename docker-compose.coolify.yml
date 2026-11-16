@@ -1,12 +1,18 @@
-# API + base pour un déploiement de TEST sur Coolify.
+# API, back-office et base pour un déploiement de TEST réel sur Coolify.
 #
 # Coolify → New Resource → Docker Compose → ce dépôt, en pointant sur CE
-# fichier. Dans l'onglet du service « backend », renseigner le domaine avec son
-# port : https://api-test.mondomaine.tld:47001 — Coolify le route via Traefik.
-# Voir docs/deploiement-test.md avant de s'en servir.
+# fichier. Dans l'onglet de chaque service, renseigner son domaine avec son
+# port, par exemple :
+#     backend : https://api-test.mondomaine.tld:47001
+#     admin   : https://admin-test.mondomaine.tld:47005
+# Voir docs/deploiement-test.md pour la liste des variables d'environnement.
 #
 # Aucun port n'est publié sur l'hôte : le proxy de Coolify s'en charge, et c'est
 # ce qui évite tout conflit avec ce qui tourne déjà sur le VPS.
+#
+# Ce déploiement ne crée AUCUNE donnée fictive : un catalogue de trançons et le
+# compte administrateur, rien d'autre. Chaque client, chauffeur et course vient
+# d'une vraie inscription.
 
 services:
   postgres:
@@ -37,26 +43,44 @@ services:
       DATABASE_URL: postgresql://frontiride:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/frontiride?schema=public
       JWT_SECRET: ${SERVICE_PASSWORD_JWT}
       PORT: 47001
-      # NODE_ENV volontairement absent pour l'instant : le passer à
-      # « production » est possible dès que SMTP_* est renseigné, et c'est
-      # alors recommandé.
-      # Codes de connexion par email, le temps du test : un seul code, envoyé
-      # pour de vrai, jamais renvoyé par l'API. SMTP_* à renseigner dans
-      # Coolify (Brevo, Resend, Gmail…). Sans eux l'API retombe en mode
-      # « codes dans la réponse » : voir docs/deploiement-test.md.
+      # Adresse publique de l'API (https://api-test.mondomaine.tld). Fedapay la
+      # rappelle pour confirmer un paiement.
+      APP_URL: ${PUBLIC_API_URL}
+
+      # --- Aucune donnée fictive ---------------------------------------------
+      SEED_DEMO: "false"
+      # Adresse REELLE de l'administrateur : le code de connexion y est envoyé.
+      # Sans elle personne ne peut valider un chauffeur.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
+
+      # --- Codes de connexion par email --------------------------------------
+      # Un seul code, envoyé pour de vrai, jamais renvoyé par l'API. Le SMTP
+      # est OBLIGATOIRE : sans lui l'API retombe en mode « codes dans la
+      # réponse », ce qui ouvrirait le compte administrateur à tout le monde.
       OTP_CHANNELS: email
-      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      MAIL_FROM: ${MAIL_FROM:-}
-      # Adresses réelles des comptes de démonstration : sans elles, les codes
-      # partiraient vers @example.com. À définir avant le premier démarrage.
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@frontiride.com}
-      SEED_CLIENT_EMAIL: ${SEED_CLIENT_EMAIL:-client@example.com}
-      SEED_DRIVER_EMAIL: ${SEED_DRIVER_EMAIL:-kofi.adjovi@example.com}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      MAIL_FROM: ${MAIL_FROM}
+
+      # --- Pièces justificatives ---------------------------------------------
+      UPLOAD_DIR: /app/apps/backend/uploads
+
+      # --- Paiement (facultatif) ---------------------------------------------
+      # Sans clé, seul le paiement en espèces fonctionne. Avec une clé sandbox
+      # Fedapay, le mobile money aussi.
+      FEDAPAY_ENV: ${FEDAPAY_ENV:-sandbox}
+      FEDAPAY_SECRET_KEY: ${FEDAPAY_SECRET_KEY:-}
+      FEDAPAY_WEBHOOK_SECRET: ${FEDAPAY_WEBHOOK_SECRET:-}
+
+      # --- Appel dans l'application (facultatif) ------------------------------
       AGORA_APP_ID: ${AGORA_APP_ID:-}
       AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
+    volumes:
+      # Les pièces d'identité des chauffeurs : elles doivent survivre à un
+      # redéploiement, sinon les dossiers validés perdent leurs documents.
+      - frontiride_uploads:/app/apps/backend/uploads
     expose:
       - "47001"
     healthcheck:
@@ -67,5 +91,20 @@ services:
       retries: 20
       start_period: 60s
 
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # Lue par le navigateur, pas par le conteneur : c'est l'adresse PUBLIQUE
+      # de l'API, jamais le nom de service Docker.
+      VITE_API_URL: ${PUBLIC_API_URL}
+    expose:
+      - "47005"
+
 volumes:
   frontiride_postgres_data:
+  frontiride_uploads:

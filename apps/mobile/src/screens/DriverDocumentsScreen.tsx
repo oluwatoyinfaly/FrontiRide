@@ -9,7 +9,7 @@ import { Loading, Notice } from "../components/Feedback";
 import { Screen } from "../components/Screen";
 import { useI18n } from "../i18n";
 import { useTheme } from "../theme";
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import type { DocumentType, DriverProfile } from "../api/types";
 
 const REQUIRED: DocumentType[] = [
@@ -59,13 +59,24 @@ export default function DriverDocumentsScreen() {
 
     setBusy(type);
     try {
-      // Le téléversement vers le stockage objet reste à brancher : on
-      // enregistre pour l'instant l'URI locale renvoyée par le sélecteur, ce
-      // qui suffit à faire avancer le dossier côté back-office.
-      await api.driverUploadDocument(type, result.assets[0].uri);
+      const asset = result.assets[0];
+      // Deux temps : le fichier part d'abord vers le serveur, puis la pièce est
+      // enregistrée avec l'adresse qu'il a renvoyée. Enregistrer l'URI locale
+      // du téléphone ne servirait à personne — l'admin ne pourrait jamais
+      // l'ouvrir.
+      const { url } = await api.uploadImage(asset.uri, asset.mimeType);
+      await api.driverUploadDocument(type, url);
       load();
-    } catch {
-      setError(t("common.genericError"));
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 0
+          ? t("common.networkError")
+          : err instanceof ApiError && err.status === 413
+            ? t("driver.uploadTooLarge")
+            : err instanceof ApiError && err.status === 415
+              ? t("driver.uploadBadFormat")
+              : t("common.genericError")
+      );
     } finally {
       setBusy(null);
     }

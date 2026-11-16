@@ -102,6 +102,49 @@ async function request<T>(
   }
 }
 
+/** Un envoi de photo dépasse vite les 12 s d'une requête ordinaire en 3G. */
+const UPLOAD_TIMEOUT_MS = 60000;
+
+/**
+ * Téléverse une image (photo d'une pièce justificative) et renvoie l'adresse
+ * sous laquelle le serveur la conserve. Pas d'en-tête Content-Type : c'est
+ * fetch qui le pose, avec la frontière du multipart, qu'on ne peut pas deviner.
+ */
+async function uploadImage(uri: string, mimeType?: string | null) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  const form = new FormData();
+  // React Native accepte cet objet {uri, name, type} à la place d'un Blob.
+  form.append("file", {
+    uri,
+    name: "piece.jpg",
+    type: mimeType ?? "image/jpeg",
+  } as unknown as Blob);
+
+  try {
+    const response = await fetch(`${API_URL}/uploads`, {
+      method: "POST",
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+      signal: controller.signal,
+    }).catch(() => {
+      throw new ApiError(0, "network");
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new ApiError(
+        response.status,
+        (payload as { error?: string } | null)?.error ?? response.statusText
+      );
+    }
+    return payload as { url: string };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}) });
 
@@ -232,6 +275,8 @@ export const api = {
   driverSetOnline: (isOnline: boolean) =>
     patch<{ isOnline: boolean }>("/driver/status", { isOnline }),
 
+  uploadImage,
+
   driverUploadDocument: (type: string, fileUrl: string) =>
     post<{ missingDocuments: string[] }>("/driver/documents", { type, fileUrl }),
 
@@ -243,6 +288,9 @@ export const api = {
     model?: string;
     pricePerDay?: number;
   }) => post<Vehicle>("/driver/vehicles", input),
+
+  driverRemoveVehicle: (id: string) =>
+    request<{ ok: boolean }>(`/driver/vehicles/${id}`, { method: "DELETE" }),
 
   driverAvailableRides: () => request<DriverRide[]>("/driver/rides/available"),
 

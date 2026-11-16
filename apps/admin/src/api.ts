@@ -56,6 +56,42 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
+/**
+ * Ouvre une pièce justificative dans un nouvel onglet. Les pièces du serveur
+ * ne sont lisibles qu'avec le jeton : un simple lien <a href> ne l'enverrait
+ * pas. On les télécharge donc avec l'en-tête, puis on ouvre le résultat.
+ *
+ * Les adresses externes (anciennes données, jeu de démonstration) s'ouvrent
+ * directement.
+ */
+export async function openDocument(fileUrl: string): Promise<void> {
+  if (!fileUrl.startsWith("/files/")) {
+    window.open(fileUrl, "_blank", "noopener");
+    return;
+  }
+
+  // L'onglet est ouvert tout de suite, pendant le geste de l'utilisateur :
+  // après un await, les navigateurs le prendraient pour une fenêtre
+  // intempestive et le bloqueraient.
+  const tab = window.open("", "_blank");
+
+  try {
+    const token = getToken();
+    const response = await fetch(`${API_URL}${fileUrl}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error(String(response.status));
+
+    const url = URL.createObjectURL(await response.blob());
+    if (tab) tab.location.href = url;
+    // Libéré après que l'onglet a eu le temps de lire.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {
+    tab?.close();
+    throw new ApiError(0, "Pièce illisible");
+  }
+}
+
 const post = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: JSON.stringify(body ?? {}) });
 
