@@ -6,6 +6,7 @@ Suppose une API démarrée avec :
   SMTP_HOST=127.0.0.1 SMTP_PORT=2525 MAIL_FROM=...  (+ faux SMTP : smtp-sink.mjs)
   FEEXPAY_TOKEN=test-token FEEXPAY_SHOP_ID=shop-1 FEEXPAY_BASE_URL=http://127.0.0.1:4010
                                                     (+ faux FeexPay : feexpay-mock.mjs)
+  Numéros de test = ceux de la sandbox FeexPay (issue selon les deux derniers chiffres).
   AGORA_APP_ID / AGORA_APP_CERTIFICATE (valeurs quelconques de 32 car.) pour l'appel
 
   python3 scripts/e2e-real.py            # API=http://localhost:47001  MAILS=/tmp/mails.jsonl
@@ -177,53 +178,95 @@ def wait_status(payment_id, token, want, tries=30):
     return last
 
 
-print("== Course frontalière, payée en Mobile Money ==")
+def new_booking():
+    st, b, _ = call("POST", "/bookings/frontalier", {"tranconId": tid, "departureAt": depart, "seats": 1, "isRoundTrip": False}, client)
+    assert st == 201, (st, b)
+    return b["booking"]["id"], b["booking"]["reference"], b["price"]["totalFcfa"]
+
+
+def pay(booking_id, method, phone):
+    return call("POST", "/payments/initiate", {"bookingId": booking_id, "method": method, "phone": phone}, client)
+
+
+def booking_status(booking_id):
+    return call("GET", f"/bookings/{booking_id}", token=client)[1]["status"]
+
+
+# Numéros de test de la sandbox FeexPay : l'issue dépend des deux derniers chiffres.
+#   00 réussi · 01 solde insuffisant · 02 erreur 503 · 03 en attente puis échec · 04 numéro invalide
+
+print("== Mobile Money : les refus, avant tout paiement ==")
 tid = troncons[0]["id"]
 depart = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3 * 86400))
-st, bk, _ = call("POST", "/bookings/frontalier", {"tranconId": tid, "departureAt": depart, "seats": 1, "isRoundTrip": False}, client)
-check("réservation", (st, bk["booking"]["status"]), (201, "AWAITING_PAYMENT"))
-bid = bk["booking"]["id"]
-price = bk["price"]["totalFcfa"]
-
+bid, ref1, price = new_booking()
 check("carte bancaire : refusée proprement", call("POST", "/payments/initiate", {"bookingId": bid, "method": "CARD"}, client)[0], 400)
-check("numéro refusé par FeexPay → erreur claire, pas de paiement créé",
-      call("POST", "/payments/initiate", {"bookingId": bid, "method": "MOMO_MTN", "phone": "+22997000000"}, client)[0], 400)
+check("numéro invalide (…04) → erreur claire", pay(bid, "MOMO_MTN", "+22997000004")[0], 400)
+st, togo, _ = pay(bid, "MOMO_MTN", "+22890222222")
+check("numéro togolais → refusé avec explication", (st, "béninois" in togo.get("error", "")), (400, True))
+check("erreur FeexPay (…02) → 503, pas un faux succès", pay(bid, "MOMO_MTN", "+22997000002")[0], 503)
+st, low, _ = pay(bid, "MOMO_MTN", "+22997000001")
+check("solde insuffisant (…01) → refusé, motif transmis", (st, bool(low.get("error"))), (400, True))
+check("aucune de ces tentatives n'a confirmé la course", booking_status(bid), "AWAITING_PAYMENT")
 
-st, pay, _ = call("POST", "/payments/initiate", {"bookingId": bid, "method": "MOMO_MTN", "phone": "+22997555555"}, client)
-check("invite envoyée au téléphone", (st, pay["status"]), (202, "PENDING"))
-pid = pay["payment"]["id"]
-check("la course n'est PAS confirmée tant que le client n'a pas validé",
-      call("GET", f"/bookings/{bid}", token=client)[1]["status"], "AWAITING_PAYMENT")
-check("une seconde invite est refusée (pas de double validation)",
-      call("POST", "/payments/initiate", {"bookingId": bid, "method": "MOMO_MTN", "phone": "+22997555555"}, client)[0], 409)
-check("personne d'autre ne suit ce paiement", call("GET", f"/payments/{pid}/status", token=driver)[0], 404)
-
-check("le client valide → paiement sous séquestre", wait_status(pid, client, "ESCROW_HELD"), "ESCROW_HELD")
-check("la course est confirmée", call("GET", f"/bookings/{bid}", token=client)[1]["status"], "CONFIRMED")
+print("== MTN : le statut final arrive dans la création ==")
+st, ok, _ = pay(bid, "MOMO_MTN", "+22997000000")
+check("paiement réussi, course confirmée immédiatement", (st, ok["status"]), (200, "CONFIRMED"))
+check("la course est confirmée", booking_status(bid), "CONFIRMED")
 sent = [json.loads(l) for l in open(PAYLOG)]
-ok_req = [r for r in sent if r["phoneNumber"] == "22997555555"][0]
-check("FeexPay a reçu le bon montant, en francs entiers", ok_req["amount"], str(price))
-check("sur le bon réseau", ok_req["network"], "mtn")
-check("avec l'identifiant de boutique", ok_req["shop"], "shop-1")
+req = [r for r in sent if r.get("phoneNumber") == "2290197000000" and r["network"] == "mtn"][-1]
+check("numéro envoyé au format 229 + 01 + 8 chiffres", req["phoneNumber"], "2290197000000")
+check("montant entier, en francs", (req["amount"], isinstance(req["amount"], int)), (price, True))
+check("identifiant de boutique", req["shop"], "shop-1")
+check("description sans caractère spécial", (req["description"].startswith("FrontiRide"), req["description"].replace(" ", "").isalnum()), (True, True))
 check("le webhook public n'existe plus", call("POST", "/payments/webhook", {"name": "transaction.approved", "entity": {"id": "1"}})[0], 404)
 
-print("== Paiement refusé, puis repris ==")
-st, bk2, _ = call("POST", "/bookings/frontalier", {"tranconId": tid, "departureAt": depart, "seats": 1, "isRoundTrip": False}, client)
-bid2 = bk2["booking"]["id"]
-st, pay2, _ = call("POST", "/payments/initiate", {"bookingId": bid2, "method": "MOMO_MOOV", "phone": "+22997119999"}, client)
+print("== Moov ==")
+bid_moov, _r, _p = new_booking()
+st, mv, _ = pay(bid_moov, "MOMO_MOOV", "+22997555500")
+check("paiement Moov réussi", (st, mv["status"]), (200, "CONFIRMED"))
+mreq = [r for r in [json.loads(l) for l in open(PAYLOG)] if r["network"] == "moov"][-1]
+check("réseau moov, numéro à 10 chiffres", (mreq["network"], mreq["phoneNumber"]), ("moov", "2290197555500"))
+
+print("== Celtiis : en attente, puis confirmé ==")
+bid2, _r, _p = new_booking()
+st, pay2, _ = pay(bid2, "MOMO_CELTIIS", "+22997111100")
+check("invite envoyée, en attente de validation", (st, pay2["status"]), (202, "PENDING"))
+check("la course n'est PAS confirmée tant que le client n'a pas validé", booking_status(bid2), "AWAITING_PAYMENT")
+st, dup, _ = pay(bid2, "MOMO_CELTIIS", "+22997111100")
+check("une seconde invite est refusée (pas de double validation)", st, 409)
+check("personne d'autre ne suit ce paiement", call("GET", f"/payments/{pay2['payment']['id']}/status", token=driver)[0], 404)
+check("le client valide → paiement sous séquestre", wait_status(pay2["payment"]["id"], client, "ESCROW_HELD"), "ESCROW_HELD")
+check("la course est confirmée", booking_status(bid2), "CONFIRMED")
+
+print("== Celtiis : refus après attente, puis espèces ==")
+bid4, _r, _p = new_booking()
+st, pay4, _ = pay(bid4, "MOMO_CELTIIS", "+22997119903")
 check("invite envoyée", st, 202)
-check("le client refuse sur son téléphone → échec", wait_status(pay2["payment"]["id"], client, "FAILED"), "FAILED")
-check("la course reste à payer", call("GET", f"/bookings/{bid2}", token=client)[1]["status"], "AWAITING_PAYMENT")
-st, again, _ = call("POST", "/payments/initiate", {"bookingId": bid2, "method": "CASH"}, client)
+check("le client n'aboutit pas → échec", wait_status(pay4["payment"]["id"], client, "FAILED"), "FAILED")
+check("la course reste à payer", booking_status(bid4), "AWAITING_PAYMENT")
+st, again, _ = call("POST", "/payments/initiate", {"bookingId": bid4, "method": "CASH"}, client)
 check("il peut se rabattre sur les espèces", (st, again["status"]), (200, "CONFIRMED"))
 
+print("== Togo : clients togolais sur les réseaux togolais ==")
+bid_tg, _r, _p = new_booking()
+check("un numéro béninois ne peut pas payer sur un réseau togolais",
+      pay(bid_tg, "MOMO_TOGOCOM", "+22997000000")[0], 400)
+st, tg, _ = pay(bid_tg, "MOMO_TOGOCOM", "+22890222200")
+check("Togocom : invite envoyée, en attente", (st, tg["status"]), (202, "PENDING"))
+check("le client togolais valide → paiement sous séquestre", wait_status(tg["payment"]["id"], client, "ESCROW_HELD"), "ESCROW_HELD")
+treq = [r for r in [json.loads(l) for l in open(PAYLOG)] if r["network"] == "togocom_tg"][-1]
+check("numéro envoyé au format 228 + 8 chiffres", treq["phoneNumber"], "22890222200")
+bid_tg2, _r, _p = new_booking()
+st, mg, _ = pay(bid_tg2, "MOMO_MOOV_TG", "+22891333300")
+check("Moov Togo : invite envoyée", st, 202)
+check("Moov Togo : confirmé", wait_status(mg["payment"]["id"], client, "ESCROW_HELD"), "ESCROW_HELD")
+
 print("== Réconciliation sans l'application ==")
-st, bk3, _ = call("POST", "/bookings/frontalier", {"tranconId": tid, "departureAt": depart, "seats": 1, "isRoundTrip": False}, client)
-bid3 = bk3["booking"]["id"]
-call("POST", "/payments/initiate", {"bookingId": bid3, "method": "MOMO_MTN", "phone": "+22997666666"}, client)
+bid3, _r, _p = new_booking()
+pay(bid3, "MOMO_CELTIIS", "+22997666600")
 status3 = "AWAITING_PAYMENT"
 for _ in range(60):  # l'application est fermée : on n'interroge PAS le statut
-    status3 = call("GET", f"/bookings/{bid3}", token=client)[1]["status"]
+    status3 = booking_status(bid3)
     if status3 == "CONFIRMED":
         break
     time.sleep(1)
@@ -231,8 +274,8 @@ check("le serveur confirme tout seul, application fermée", status3, "CONFIRMED"
 
 print("== La course, jusqu'à la note ==")
 avail = sorted(r["id"] for r in call("GET", "/driver/rides/available", token=driver)[1])
-check("les trois courses payées sont proposées au chauffeur (Mobile Money, espèces, réconciliation)",
-      {bid, bid2, bid3} <= set(avail), True)
+check("toutes les courses payées sont proposées au chauffeur (cinq moyens, deux pays)",
+      {bid, bid_moov, bid2, bid3, bid4, bid_tg, bid_tg2} <= set(avail), True)
 check("acceptation", call("POST", f"/driver/rides/{bid}/accept", token=driver)[1]["status"], "DRIVER_ASSIGNED")
 check("le client voit son chauffeur", call("GET", f"/bookings/{bid}", token=client)[1]["driver"]["user"]["fullName"], "Kofi Chauffeur")
 check("départ", call("POST", f"/driver/rides/{bid}/start", token=driver)[0], 200)
@@ -244,7 +287,7 @@ print("== L'argent : du séquestre au retrait ==")
 wallet = call("GET", "/driver/me", token=driver)[1]["wallet"]
 check("gains en attente, rien de retirable encore", (wallet["pendingFcfa"] > 0, wallet["balanceFcfa"]), (True, 0))
 payments = call("GET", "/admin/payments?status=ESCROW_HELD", token=admin)[1]
-mine = [p for p in payments if p["booking"]["reference"] == bk["booking"]["reference"]]
+mine = [p for p in payments if p["booking"]["reference"] == ref1]
 check("l'admin voit le paiement sous séquestre", len(mine), 1)
 rel = call("POST", f"/admin/payments/{mine[0]['id']}/release", token=admin)
 check("déblocage par l'admin", rel[0], 200)
@@ -269,6 +312,10 @@ start = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 10 * 86400
 st, lv, _ = call("POST", "/bookings/location-ville", {"vehicleId": vid, "startAt": start, "durationDays": 2}, client)
 check("réservation de location", (st, lv["booking"]["status"]), (201, "AWAITING_PAYMENT"))
 check("acompte de 30 %", lv["advanceFcfa"], round(lv["price"]["totalFcfa"] * 0.3))
+start2 = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 40 * 86400))
+st, big, _ = call("POST", "/bookings/location-ville", {"vehicleId": vid, "startAt": start2, "durationDays": 20}, client)
+st, over, _ = call("POST", "/payments/initiate", {"bookingId": big["booking"]["id"], "method": "MOMO_MTN", "phone": "+22997000000", "payFull": True}, client)
+check("au-delà de 1 000 000 FCFA, le Mobile Money est refusé avec explication", (st, "1 000 000" in over.get("error", "").replace("\u202f", " ").replace("\u00a0", " ")), (400, True))
 
 print("== Vue d'ensemble de l'admin ==")
 stats = call("GET", "/admin/stats", token=admin)[1]

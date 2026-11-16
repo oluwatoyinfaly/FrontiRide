@@ -14,6 +14,9 @@ import {
 const METHOD_LABEL: Record<string, string> = {
   MOMO_MTN: "MTN MoMo",
   MOMO_MOOV: "Moov Money",
+  MOMO_CELTIIS: "Celtiis Cash",
+  MOMO_MOOV_TG: "Moov Togo",
+  MOMO_TOGOCOM: "Togocom",
   CARD: "Carte",
   CASH: "Espèces",
 };

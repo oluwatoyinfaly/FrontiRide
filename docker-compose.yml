@@ -53,6 +53,7 @@ services:
       # Mobile Money via FeexPay ; sans eux, seul l'espèces fonctionne.
       FEEXPAY_TOKEN: ${FEEXPAY_TOKEN:-}
       FEEXPAY_SHOP_ID: ${FEEXPAY_SHOP_ID:-}
+      FEEXPAY_ENV: ${FEEXPAY_ENV:-}
       PORT: 47001
     ports:
       - "${BACKEND_PORT:-47001}:47001"

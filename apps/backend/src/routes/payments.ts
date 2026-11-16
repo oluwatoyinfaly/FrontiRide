@@ -1,12 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { FeexpayError, feexpayConfigured, requestToPay } from "../lib/feexpay.js";
-import { settlePayment } from "../lib/payments.js";
+import { applyProviderStatus, settlePayment } from "../lib/payments.js";
 import { advanceFor } from "../lib/pricing.js";
 
 const initiateSchema = z.object({
   bookingId: z.string(),
-  method: z.enum(["MOMO_MTN", "MOMO_MOOV", "CARD", "CASH"]),
+  method: z.enum([
+    "MOMO_MTN",
+    "MOMO_MOOV",
+    "MOMO_CELTIIS",
+    "MOMO_MOOV_TG",
+    "MOMO_TOGOCOM",
+    "CARD",
+    "CASH",
+  ]),
   /** Location ville : régler la totalité au lieu des 30 % d'acompte. */
   payFull: z.boolean().default(false),
   /**
@@ -17,7 +25,13 @@ const initiateSchema = z.object({
   phone: z.string().min(8).optional(),
 });
 
-const NETWORK = { MOMO_MTN: "mtn", MOMO_MOOV: "moov" } as const;
+const NETWORK = {
+  MOMO_MTN: "mtn",
+  MOMO_MOOV: "moov",
+  MOMO_CELTIIS: "celtiis_bj",
+  MOMO_MOOV_TG: "moov_tg",
+  MOMO_TOGOCOM: "togocom_tg",
+} as const;
 
 /**
  * Paiement séquestre. Le montant est immobilisé jusqu'à 24 h après la course,
@@ -112,19 +126,20 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
       });
 
       let reference: string;
+      let initialStatus: "PENDING" | "SUCCESSFUL";
       try {
-        ({ reference } = await requestToPay({
+        ({ reference, status: initialStatus } = await requestToPay({
           amountFcfa: dueNow,
           phone: body.phone ?? client.phone,
           network: NETWORK[body.method],
-          motif: `FrontiRide ${booking.reference}`,
+          description: `FrontiRide ${booking.reference}`,
           customer: { email: client.email, fullName: client.fullName },
         }));
       } catch (error) {
         if (error instanceof FeexpayError) {
           fastify.log.error({ err: error }, "Demande de paiement FeexPay échouée");
           // Refus du prestataire : on renvoie son motif, c'est l'utilisateur
-          // qui doit corriger (numéro, réseau…). Panne : message neutre.
+          // qui doit corriger (numéro, solde…). Panne : message neutre.
           return error.kind === "rejected"
             ? reply.code(400).send({ error: error.message })
             : reply.code(503).send({ error: "Paiement indisponible, réessayez" });
@@ -151,7 +166,12 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         },
       });
 
-      return reply.code(202).send({ payment, dueNowFcfa: dueNow, status: "PENDING" });
+      // MTN et Moov répondent le résultat dès la création : inutile d'attendre
+      // un second tour pour confirmer. Celtiis reste en attente quelques secondes.
+      const outcome = await applyProviderStatus(fastify, payment, initialStatus);
+      return outcome === "ESCROW_HELD"
+        ? reply.send({ payment, dueNowFcfa: dueNow, status: "CONFIRMED" })
+        : reply.code(202).send({ payment, dueNowFcfa: dueNow, status: "PENDING" });
     }
   );
 

@@ -75,6 +75,9 @@ enum BookingStatus {
 enum PaymentMethod {
   MOMO_MTN
   MOMO_MOOV
+  MOMO_CELTIIS
+  MOMO_MOOV_TG
+  MOMO_TOGOCOM
   CARD
   CASH
 }

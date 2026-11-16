@@ -33,7 +33,14 @@ export type DriverStatus =
   | "REJECTED"
   | "SUSPENDED";
 
-export type PaymentMethod = "MOMO_MTN" | "MOMO_MOOV" | "CARD" | "CASH";
+export type PaymentMethod =
+  | "MOMO_MTN"
+  | "MOMO_MOOV"
+  | "MOMO_CELTIIS"
+  | "MOMO_MOOV_TG"
+  | "MOMO_TOGOCOM"
+  | "CARD"
+  | "CASH";
 
 export type PaymentStatus =
   | "PENDING"

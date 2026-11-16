@@ -26,6 +26,7 @@ rien à valider : le test consiste à fabriquer lui-même ses données.
 | `SEED_ADMIN_EMAIL` | oui | Ton adresse : c'est là que parvient le code de l'admin |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | oui | Ton serveur Brevo |
 | `FEEXPAY_TOKEN`, `FEEXPAY_SHOP_ID` | non | Mobile Money. Sans eux : espèces seulement |
+| `FEEXPAY_ENV` | non | `sandbox` ou `live`. Vide : déduit de la clé (`test_…` = sandbox) |
 | `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE` | non | Appel dans l'application |
 
 Le mot de passe de la base et le secret JWT sont générés par Coolify.
@@ -90,35 +91,74 @@ boîte Gmail avec des alias en `+` arrive entièrement chez toi
 Ce parcours est rejoué automatiquement par `apps/backend/scripts/e2e-real.py`
 (voir plus bas).
 
-## Paiement Mobile Money : ce qui est vérifié, et ce qui ne l'est pas
+## Paiement Mobile Money
 
 Le client reçoit une demande de validation sur son téléphone et saisit son code
 Mobile Money ; l'application attend, et le serveur **interroge FeexPay lui-même**
-pour confirmer. Il n'y a pas de webhook : on ne peut pas authentifier un appel
-entrant sans un mécanisme de signature que FeexPay ne documente pas dans son SDK,
-et sans lui, n'importe qui pourrait déclarer une course payée. En plus de
-l'application, le serveur règle de lui-même, toutes les 20 secondes, les
-paiements en attente : un client qui valide puis ferme l'app voit quand même sa
-course confirmée.
+pour confirmer. Il n'y a pas de webhook à déclarer : on ne s'en sert pas, et ce
+n'est pas un oubli.
 
-Adresses, champs et statuts viennent du **SDK officiel** (`feexpay-sdk`, lu
-directement), pas de la documentation en ligne, qui n'était pas accessible. Le
-code est testé contre un faux serveur calqué dessus (`scripts/feexpay-mock.mjs`),
-**jamais contre l'API réelle**. Un premier paiement en sandbox doit lever ces
-points, marqués `À CONFIRMER` dans `src/lib/feexpay.ts` :
+- **Pourquoi pas de webhook.** Confirmer par interrogation directe suffit, et il
+  est plus sûr : un appel entrant ne peut pas être authentifié sans un mécanisme
+  de signature, et sans lui n'importe qui pourrait déclarer une course payée.
+  Le serveur règle de lui-même, toutes les 20 secondes, les paiements en
+  attente : un client qui valide puis ferme l'app voit quand même sa course
+  confirmée.
+- **La sandbox et la production n'ont pas la même adresse**
+  (`sandbox-api.feexpay.me` / `api-v2.feexpay.me`). Le serveur la déduit de la
+  clé ; si ta clé de test ne commence pas par `test_`, mets `FEEXPAY_ENV=sandbox`.
+  Une clé de test envoyée à la production est refusée.
 
-| Point | Hypothèse actuelle | Si c'est faux |
+### Réseaux
+
+| Réseau | Moyen | Numéro envoyé |
 |---|---|---|
-| Format du numéro | `22997000000` (indicatif, sans `+`) | La demande est refusée : ajuster `formatPhone` |
-| Unité du montant | francs entiers, en chaîne | Montant divisé ou multiplié : ajuster `amount` |
-| Réseaux | `mtn` et `moov` | Autre valeur (Togo, Celtiis…) : élargir `NETWORK` |
-| Champ de référence | `reference` dans la réponse | « Réponse FeexPay sans référence » dans les journaux |
+| MTN Bénin | `MOMO_MTN` | `229` + `01` + 8 chiffres |
+| Moov Bénin | `MOMO_MOOV` | `229` + `01` + 8 chiffres |
+| Celtiis Bénin | `MOMO_CELTIIS` | `229` + `01` + 8 chiffres |
+| Moov Togo | `MOMO_MOOV_TG` | `228` + 8 chiffres **(à confirmer)** |
+| Togocom | `MOMO_TOGOCOM` | `228` + 8 chiffres **(à confirmer)** |
 
-**Les numéros togolais ne sont pas couverts** : le SDK ne cite que `mtn` et
-`moov`, qui sont des réseaux béninois. Le corridor Cotonou ↔ Lomé en a besoin ;
-il faut les valeurs exactes dans la documentation FeexPay.
+Un utilisateur saisit encore « 97 00 00 00 » : l'application convertit au format à
+10 chiffres. Un numéro béninois ne peut pas payer sur un réseau togolais, et
+inversement : la réponse l'explique.
 
-La **carte bancaire** n'est pas proposée : le SDK n'expose pas de flux carte.
+Limites imposées par FeexPay : entier de **10 à 1 000 000 FCFA** par paiement. Au-delà
+(une location longue réglée en totalité, par exemple), le Mobile Money est refusé
+avec une explication ; l'acompte de 30 %, lui, passe. La carte bancaire n'est pas
+proposée.
+
+### Numéros de test de la sandbox
+
+L'issue dépend des **deux derniers chiffres** du numéro :
+
+| Fin | Résultat |
+|---|---|
+| `00` | réussi |
+| `01` | échec, solde insuffisant |
+| `02` | erreur HTTP 503 |
+| `03` | échec après 5 à 8 secondes |
+| `04` | numéro invalide (400) |
+| `05` | reste en attente |
+
+MTN et Moov Bénin répondent le statut final dans la création du paiement ; Celtiis
+et les canaux togolais répondent « en attente » puis règlent quelques secondes plus
+tard.
+
+### Ce qui reste à confirmer en sandbox
+
+Tout est testé contre un faux serveur calqué sur la documentation V2 de FeexPay
+(`scripts/feexpay-mock.mjs`), **jamais contre l'API réelle**. Le premier paiement
+sandbox doit confirmer :
+
+1. **Le Togo.** La documentation liste les codes réseau `MOOV TG` et `TOGOCOM TG`,
+   mais la table des canaux transmise s'arrête avant eux : les adresses
+   (`/requesttopay/moov_tg`, `/requesttopay/togocom_tg`) et le format du numéro
+   (`228` + 8 chiffres) sont **déduits** du schéma des autres canaux. Si FeexPay
+   répond 404 ou « numéro invalide », c'est là : envoie la ligne du Togo de la
+   table « Payin (collection) ».
+2. **Le suivi sur la sandbox.** La route `/api/transactions/public/single/status/`
+   est documentée sur la production ; on suppose le même chemin sur la sandbox.
 
 ## Test automatique
 
@@ -135,8 +175,9 @@ OTP_CHANNELS=email SMTP_HOST=127.0.0.1 SMTP_PORT=2525 MAIL_FROM=test@e2e.test \
 python3 scripts/e2e-real.py
 ```
 
-Il joue le parcours ci-dessus sur une base vierge : inscription par code reçu en
-mail, 7 pièces, validation, véhicule, paiement Mobile Money (réussi, refusé,
+Il joue le parcours ci-dessus sur une base vierge, en 76 vérifications :
+inscription par code reçu en mail, 7 pièces, validation, véhicule, paiement Mobile
+Money sur les cinq réseaux (réussi, refusé, solde insuffisant, panne, en attente,
 confirmé sans l'application), course, note, appel, déblocage du séquestre et
 retrait.
 

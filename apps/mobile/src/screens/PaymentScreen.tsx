@@ -16,15 +16,27 @@ import type { Booking, PaymentMethod } from "../api/types";
 
 type Props = NativeStackScreenProps<HomeStackParamList, "Payment">;
 
-const METHODS: { value: PaymentMethod; icon: keyof typeof Ionicons.glyphMap }[] = [
+type MethodEntry = { value: PaymentMethod; icon: keyof typeof Ionicons.glyphMap };
+
+const BENIN_METHODS: MethodEntry[] = [
   { value: "MOMO_MTN", icon: "phone-portrait" },
   { value: "MOMO_MOOV", icon: "phone-portrait" },
-  { value: "CASH", icon: "cash" },
+  { value: "MOMO_CELTIIS", icon: "phone-portrait" },
 ];
+
+const TOGO_METHODS: MethodEntry[] = [
+  { value: "MOMO_TOGOCOM", icon: "phone-portrait" },
+  { value: "MOMO_MOOV_TG", icon: "phone-portrait" },
+];
+
+const CASH_METHOD: MethodEntry = { value: "CASH", icon: "cash" };
 
 const LABEL_KEY: Record<PaymentMethod, string> = {
   MOMO_MTN: "payment.momoMtn",
   MOMO_MOOV: "payment.momoMoov",
+  MOMO_CELTIIS: "payment.momoCeltiis",
+  MOMO_MOOV_TG: "payment.momoMoovTg",
+  MOMO_TOGOCOM: "payment.momoTogocom",
   CARD: "payment.card",
   CASH: "payment.cash",
 };
@@ -35,8 +47,18 @@ const ADVANCE_RATIO = 0.3;
 const POLL_MS = 3000;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
 
-const isMobileMoney = (method: PaymentMethod) =>
-  method === "MOMO_MTN" || method === "MOMO_MOOV";
+const isMobileMoney = (method: PaymentMethod) => method !== "CASH" && method !== "CARD";
+
+/**
+ * Les réseaux du pays du client passent en premier : un client togolais ne peut
+ * pas payer avec MTN Bénin, il ne doit donc pas avoir à les chercher.
+ */
+function methodsFor(accountPhone: string | undefined): MethodEntry[] {
+  const togolese = (accountPhone ?? "").replace(/\s/g, "").startsWith("+228");
+  return togolese
+    ? [...TOGO_METHODS, ...BENIN_METHODS, CASH_METHOD]
+    : [...BENIN_METHODS, ...TOGO_METHODS, CASH_METHOD];
+}
 
 export default function PaymentScreen({ route, navigation }: Props) {
   const { bookingId } = route.params;
@@ -45,7 +67,8 @@ export default function PaymentScreen({ route, navigation }: Props) {
   const { user } = useSession();
 
   const [booking, setBooking] = useState<Booking | null>(null);
-  const [method, setMethod] = useState<PaymentMethod>("MOMO_MTN");
+  const methods = methodsFor(user?.phone);
+  const [method, setMethod] = useState<PaymentMethod>(methods[0].value);
   // Le numéro du compte par défaut ; on paie souvent avec une autre SIM.
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [submitting, setSubmitting] = useState(false);
@@ -212,7 +235,7 @@ export default function PaymentScreen({ route, navigation }: Props) {
       </Text>
 
       <View style={{ gap: space[2] }}>
-        {METHODS.map((entry) => {
+        {methods.map((entry) => {
           const selected = entry.value === method;
           return (
             <Card key={entry.value} onPress={() => setMethod(entry.value)}>

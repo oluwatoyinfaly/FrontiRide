@@ -72,6 +72,8 @@ services:
       # déclarer : le serveur interroge FeexPay lui-même pour confirmer.
       FEEXPAY_TOKEN: ${FEEXPAY_TOKEN:-}
       FEEXPAY_SHOP_ID: ${FEEXPAY_SHOP_ID:-}
+      # « sandbox » ou « live ». Vide : déduit de la clé (« test_… » = sandbox).
+      FEEXPAY_ENV: ${FEEXPAY_ENV:-}
 
       # --- Appel dans l'application (facultatif) ------------------------------
       AGORA_APP_ID: ${AGORA_APP_ID:-}

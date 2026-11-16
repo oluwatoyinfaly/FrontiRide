@@ -14,17 +14,56 @@ const EXPIRY_MINUTES = 15;
 export type PaymentOutcome = "PENDING" | "ESCROW_HELD" | "FAILED";
 
 /**
+ * Applique à un paiement un statut que FeexPay vient de communiquer : dans la
+ * réponse à la création, ou à une interrogation.
+ *
+ * Idempotente : plusieurs appels simultanés (l'app qui interroge, la
+ * réconciliation en arrière-plan) aboutissent au même état. La transition se
+ * fait par une mise à jour conditionnelle sur PENDING, dont un seul appel sort
+ * gagnant.
+ */
+export async function applyProviderStatus(
+  fastify: FastifyInstance,
+  payment: { id: string; bookingId: string; createdAt: Date },
+  status: "PENDING" | "SUCCESSFUL" | "FAILED"
+): Promise<PaymentOutcome> {
+  if (status === "SUCCESSFUL") {
+    const releaseAt = new Date(Date.now() + ESCROW_HOURS * 60 * 60 * 1000);
+
+    const won = await fastify.prisma.payment.updateMany({
+      where: { id: payment.id, status: "PENDING" },
+      data: { status: "ESCROW_HELD", escrowReleaseAt: releaseAt },
+    });
+    if (won.count > 0) {
+      await fastify.prisma.booking.updateMany({
+        where: { id: payment.bookingId, status: "AWAITING_PAYMENT" },
+        data: { status: "CONFIRMED" },
+      });
+    }
+    return "ESCROW_HELD";
+  }
+
+  const expired =
+    Date.now() - payment.createdAt.getTime() > EXPIRY_MINUTES * 60 * 1000;
+
+  if (status === "FAILED" || expired) {
+    await fastify.prisma.payment.updateMany({
+      where: { id: payment.id, status: "PENDING" },
+      data: { status: "FAILED" },
+    });
+    return "FAILED";
+  }
+
+  return "PENDING";
+}
+
+/**
  * Interroge FeexPay sur un paiement en attente et applique le résultat.
  *
  * C'est FeexPay lui-même qu'on interroge, avec notre clé : la confirmation
  * d'un paiement ne repose jamais sur un appel entrant qu'on ne pourrait pas
  * authentifier. Personne ne peut déclarer une course réglée en envoyant une
  * requête à l'API — il faudrait que FeexPay la confirme.
- *
- * Idempotente : plusieurs appels simultanés (l'app qui interroge, la
- * réconciliation en arrière-plan) aboutissent au même état. La transition se
- * fait par une mise à jour conditionnelle sur PENDING, dont un seul appel sort
- * gagnant.
  */
 export async function settlePayment(
   fastify: FastifyInstance,
@@ -42,43 +81,19 @@ export async function settlePayment(
     return payment.status === "FAILED" ? "FAILED" : "PENDING";
   }
 
-  const expired =
-    Date.now() - payment.createdAt.getTime() > EXPIRY_MINUTES * 60 * 1000;
-
   let status: "PENDING" | "SUCCESSFUL" | "FAILED";
   try {
     status = await fetchStatus(payment.providerReference);
   } catch (error) {
-    // FeexPay injoignable : on ne tranche pas, on réessaiera.
-    if (error instanceof FeexpayError) return "PENDING";
+    // FeexPay injoignable : on ne tranche pas, on réessaiera. Un paiement trop
+    // ancien est tout de même abandonné — voir applyProviderStatus.
+    if (error instanceof FeexpayError) {
+      return applyProviderStatus(fastify, payment, "PENDING");
+    }
     throw error;
   }
 
-  if (status === "SUCCESSFUL") {
-    const releaseAt = new Date(Date.now() + ESCROW_HOURS * 60 * 60 * 1000);
-
-    const won = await fastify.prisma.payment.updateMany({
-      where: { id: payment.id, status: "PENDING" },
-      data: { status: "ESCROW_HELD", escrowReleaseAt: releaseAt },
-    });
-    if (won.count > 0) {
-      await fastify.prisma.booking.updateMany({
-        where: { id: payment.bookingId, status: "AWAITING_PAYMENT" },
-        data: { status: "CONFIRMED" },
-      });
-    }
-    return "ESCROW_HELD";
-  }
-
-  if (status === "FAILED" || expired) {
-    await fastify.prisma.payment.updateMany({
-      where: { id: payment.id, status: "PENDING" },
-      data: { status: "FAILED" },
-    });
-    return "FAILED";
-  }
-
-  return "PENDING";
+  return applyProviderStatus(fastify, payment, status);
 }
 
 /**
