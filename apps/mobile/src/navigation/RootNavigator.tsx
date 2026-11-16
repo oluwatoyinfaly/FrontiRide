@@ -25,9 +25,11 @@ import TripsScreen from "../screens/TripsScreen";
 import TripDetailScreen from "../screens/TripDetailScreen";
 import RateScreen from "../screens/RateScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+import BecomeDriverScreen from "../screens/BecomeDriverScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
 import DriverDocumentsScreen from "../screens/DriverDocumentsScreen";
 import DriverWalletScreen from "../screens/DriverWalletScreen";
+import DriverVehiclesScreen from "../screens/DriverVehiclesScreen";
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const HomeStack = createNativeStackNavigator<HomeStackParamList>();
@@ -60,7 +62,7 @@ function HomeNavigator() {
       <HomeStack.Screen
         name="Home"
         component={HomeScreen}
-        options={{ title: "FrontiRide" }}
+        options={{ headerShown: false }}
       />
       <HomeStack.Screen
         name="BookFrontalier"
@@ -142,6 +144,11 @@ function DriverNavigator() {
         component={DriverWalletScreen}
         options={{ title: t("driver.wallet") }}
       />
+      <DriverStack.Screen
+        name="DriverVehicles"
+        component={DriverVehiclesScreen}
+        options={{ title: t("driver.vehicles") }}
+      />
     </DriverStack.Navigator>
   );
 }
@@ -157,20 +164,35 @@ function ProfileNavigator() {
         component={ProfileScreen}
         options={{ title: t("profile.title") }}
       />
+      <ProfileStack.Screen
+        name="BecomeDriver"
+        component={BecomeDriverScreen}
+        options={{ title: t("driver.becomeTitle") }}
+      />
     </ProfileStack.Navigator>
   );
 }
 
-const TAB_ICONS: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
-  HomeTab: "home",
-  TripsTab: "receipt",
-  DriverTab: "car-sport",
-  ProfileTab: "person",
+/** Icône pleine à l'état actif, contour au repos — la convention du genre. */
+const TAB_ICONS: Record<
+  keyof TabParamList,
+  [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]
+> = {
+  HomeTab: ["home", "home-outline"],
+  TripsTab: ["receipt", "receipt-outline"],
+  DriverTab: ["car-sport", "car-sport-outline"],
+  ProfileTab: ["person-circle", "person-circle-outline"],
 };
 
 function AppTabs() {
-  const { colors, text } = useTheme();
+  const { colors, radius, text, isDark } = useTheme();
   const { t } = useI18n();
+  const { user } = useSession();
+
+  // L'espace chauffeur n'a de sens que pour qui a déposé une candidature :
+  // un client simple n'a pas à porter un onglet qui ne le concerne pas. Il
+  // trouve l'entrée « devenir chauffeur » dans son profil.
+  const isDriver = Boolean(user?.driverProfile);
 
   return (
     <Tabs.Navigator
@@ -180,12 +202,39 @@ function AppTabs() {
         tabBarInactiveTintColor: colors.textFaint,
         tabBarStyle: {
           backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          borderTopWidth: 0,
+          height: 66,
+          paddingTop: 8,
+          paddingBottom: 10,
+          // La barre se détache du contenu par son ombre plutôt que par un
+          // filet, plus proche des apps de la catégorie.
+          shadowColor: "#000",
+          shadowOpacity: isDark ? 0.35 : 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -3 },
+          elevation: 12,
         },
-        tabBarLabelStyle: { fontFamily: text.label.fontFamily, fontSize: 11 },
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />
-        ),
+        tabBarLabelStyle: {
+          fontFamily: text.label.fontFamily,
+          fontSize: 11,
+          marginTop: 2,
+        },
+        tabBarIcon: ({ color, focused }) => {
+          const [filled, outline] = TAB_ICONS[route.name];
+          return (
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 4,
+                borderRadius: radius.pill,
+                // Pastille de fond sous l'onglet actif : repère immédiat.
+                backgroundColor: focused ? `${colors.brand}1A` : "transparent",
+              }}
+            >
+              <Ionicons name={focused ? filled : outline} size={22} color={color} />
+            </View>
+          );
+        },
       })}
     >
       <Tabs.Screen
@@ -198,11 +247,13 @@ function AppTabs() {
         component={TripsNavigator}
         options={{ title: t("tabs.trips") }}
       />
-      <Tabs.Screen
-        name="DriverTab"
-        component={DriverNavigator}
-        options={{ title: t("tabs.driver") }}
-      />
+      {isDriver ? (
+        <Tabs.Screen
+          name="DriverTab"
+          component={DriverNavigator}
+          options={{ title: t("tabs.driver") }}
+        />
+      ) : null}
       <Tabs.Screen
         name="ProfileTab"
         component={ProfileNavigator}

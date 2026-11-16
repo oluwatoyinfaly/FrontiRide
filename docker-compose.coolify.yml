@@ -1,0 +1,115 @@
+# API, back-office et base pour un déploiement de TEST réel sur Coolify.
+#
+# Coolify → New Resource → Docker Compose → ce dépôt, en pointant sur CE
+# fichier. Dans l'onglet de chaque service, renseigner son domaine avec son
+# port, par exemple :
+#     backend : https://api-test.mondomaine.tld:47001
+#     admin   : https://admin-test.mondomaine.tld   (le port 80 ou 47005 convient)
+# Voir docs/deploiement-test.md pour la liste des variables d'environnement.
+#
+# Aucun port n'est publié sur l'hôte : le proxy de Coolify s'en charge, et c'est
+# ce qui évite tout conflit avec ce qui tourne déjà sur le VPS.
+#
+# Ce déploiement ne crée AUCUNE donnée fictive : un catalogue de trançons et le
+# compte administrateur, rien d'autre. Chaque client, chauffeur et course vient
+# d'une vraie inscription.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: frontiride
+      # Variable « magique » de Coolify : un mot de passe est généré et gardé.
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_DB: frontiride
+    volumes:
+      - frontiride_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frontiride -d frontiride"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    # Même démarrage que l'image, sans la surveillance de fichiers.
+    command: npm run start:staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://frontiride:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/frontiride?schema=public
+      JWT_SECRET: ${SERVICE_PASSWORD_JWT}
+      PORT: 47001
+      # Adresse publique de l'API (https://api-test.mondomaine.tld).
+      APP_URL: ${PUBLIC_API_URL}
+
+      # --- Aucune donnée fictive ---------------------------------------------
+      SEED_DEMO: "false"
+      # Adresse REELLE de l'administrateur : le code de connexion y est envoyé.
+      # Sans elle personne ne peut valider un chauffeur.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
+
+      # --- Codes de connexion par email --------------------------------------
+      # Un seul code, envoyé pour de vrai, jamais renvoyé par l'API. Le SMTP
+      # est OBLIGATOIRE : sans lui l'API retombe en mode « codes dans la
+      # réponse », ce qui ouvrirait le compte administrateur à tout le monde.
+      OTP_CHANNELS: email
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      MAIL_FROM: ${MAIL_FROM}
+
+      # --- Pièces justificatives ---------------------------------------------
+      UPLOAD_DIR: /app/apps/backend/uploads
+
+      # --- Paiement Mobile Money, FeexPay (facultatif) ------------------------
+      # Sans eux, seul le paiement en espèces fonctionne. Les deux valeurs se
+      # trouvent dans le menu « Développeur » du compte FeexPay. Aucun webhook à
+      # déclarer : le serveur interroge FeexPay lui-même pour confirmer.
+      FEEXPAY_TOKEN: ${FEEXPAY_TOKEN:-}
+      FEEXPAY_SHOP_ID: ${FEEXPAY_SHOP_ID:-}
+      # « sandbox » ou « live ». Vide : déduit de la clé (« test_… » = sandbox).
+      FEEXPAY_ENV: ${FEEXPAY_ENV:-}
+
+      # --- Appel dans l'application (facultatif) ------------------------------
+      AGORA_APP_ID: ${AGORA_APP_ID:-}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
+    volumes:
+      # Les pièces d'identité des chauffeurs : elles doivent survivre à un
+      # redéploiement, sinon les dossiers validés perdent leurs documents.
+      - frontiride_uploads:/app/apps/backend/uploads
+    expose:
+      - "47001"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "node -e \"fetch('http://localhost:47001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile.prod
+      args:
+        # Figée dans le JavaScript à la compilation : c'est le NAVIGATEUR qui
+        # appelle l'API, donc l'adresse PUBLIQUE, jamais le nom de service Docker.
+        # Sans slash final. La changer demande un nouveau déploiement.
+        VITE_API_URL: ${PUBLIC_API_URL}
+    depends_on:
+      backend:
+        condition: service_healthy
+    # nginx écoute sur 80 ET sur 47005 : le routage marche que le champ « Domains »
+    # précise l'un, l'autre, ou aucun port.
+    expose:
+      - "80"
+      - "47005"
+
+volumes:
+  frontiride_postgres_data:
+  frontiride_uploads:

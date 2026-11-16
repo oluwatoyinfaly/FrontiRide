@@ -10,6 +10,8 @@ Plateforme de mise en relation pour le transport frontalier (Volet 1) et la loca
 - [`docs/plan-de-developpement.md`](docs/plan-de-developpement.md) — stack technique et phasage du MVP.
 - [`docs/charte-graphique.md`](docs/charte-graphique.md) — logo, couleurs, typographie, assets.
 - [`docs/builds-eas.md`](docs/builds-eas.md) — builds EAS, labels de PR, intégration continue.
+- [`docs/appels.md`](docs/appels.md) — appels client ↔ chauffeur : Agora, WhatsApp, téléphone.
+- [`docs/deploiement-test.md`](docs/deploiement-test.md) — déploiement de test sur Coolify, codes par email.
 
 ## Structure du repo
 
@@ -24,47 +26,81 @@ docs/        Spécifications, charte et procédures
 
 ## Démarrage rapide
 
-### 1. Backend et base de données
+### 1. Base de données, API et back-office — une seule commande
 
 ```bash
 docker compose up --build
-docker compose exec backend npm run prisma:seed   # dans un autre terminal
 ```
 
-L'API écoute sur `http://localhost:3001` (`GET /health` pour vérifier). Le port hôte évite le 3000 souvent déjà pris ; change-le avec `BACKEND_PORT` si besoin.
+Trois services démarrent dans l'ordre : PostgreSQL, puis l'API (qui applique les migrations **et le seed** toute seule), puis le back-office une fois l'API en bonne santé.
 
-Le seed crée le corridor Cotonou ↔ Lomé, quatre chauffeurs (deux validés, deux à contrôler), un client et cinq réservations couvrant chaque état — de quoi voir le back-office rempli tout de suite.
-
-| Compte de démonstration | Rôle |
+| Service | Adresse |
 |---|---|
-| `admin@frontiride.com` | Administrateur |
-| `client@example.com` | Client |
-| `kofi.adjovi@example.com` | Chauffeur validé |
+| API | http://localhost:47001 — `GET /health` pour vérifier |
+| Back-office | http://localhost:47005 |
+| PostgreSQL | `localhost:47432` |
+| Metro (mobile, hors Docker) | `localhost:47081` |
+
+Le projet occupe le bloc **47000-47099**, volontairement à l'écart des ports de
+développement habituels (3000, 5432, 5173, 8081) et sous la plage dynamique de
+Windows (49152-65535) que le système attribue tout seul : rien ne devrait entrer
+en conflit avec ce qui tourne déjà sur ta machine.
+
+Si l'un de ces ports est déjà pris sur ta machine :
+
+```bash
+BACKEND_PORT=48001 ADMIN_PORT=48005 POSTGRES_PORT=48432 docker compose up --build
+```
+
+Sous PowerShell, les variables se passent autrement :
+
+```powershell
+$env:BACKEND_PORT=48001; docker compose up --build
+```
+
+Le seed remplit la base de quoi juger l'application dès le premier démarrage : 5 trançons du corridor, 10 chauffeurs couvrant les cinq états d'un dossier, 12 véhicules répartis sur les deux villes et les cinq gammes, 15 courses et 3 demandes de retrait. Il est idempotent : le relancer ne duplique rien.
+
+| Compte de démonstration | Rôle | Ce qu'on y voit |
+|---|---|---|
+| `admin@frontiride.com` | Administrateur | 2 dossiers à contrôler, 5 paiements sous séquestre, 2 retraits à verser |
+| `client@example.com` | Client | 13 courses couvrant tous les états, dont 5 terminées et 4 notées |
+| `kofi.adjovi@example.com` | Chauffeur validé | Portefeuille garni, et surtout les deux rôles : 4 courses conduites, 2 réservées comme client |
+| `rachid.ouedraogo@example.com` | Chauffeur incomplet | Dossier à 3 pièces sur 7 |
+
+**Connecte-toi avec `client@example.com` sur le mobile** : un compte tout neuf afficherait un historique vide, alors que celui-ci montre l'application vivante.
 
 L'authentification se fait par code OTP double (email + SMS). **Hors production, l'API renvoie les codes dans sa réponse** et les interfaces les préremplissent : le parcours est donc testable sans passerelle SMS.
 
-### 2. Back-office administrateur
+### 2. Application mobile
+
+Metro doit rester joignable depuis le téléphone, il tourne donc hors de Docker :
 
 ```bash
-cd apps/admin
-cp .env.example .env
-npm install && npm run dev        # http://localhost:5173
+npm install
+npm run setup:env   # crée les .env locaux (une seule fois)
+npm start
 ```
 
-### 3. Application mobile
+`npm start` à la racine délègue au workspace mobile. Ne lance **pas** `npx expo start` depuis la racine : le `package.json` racine n'a pas de champ `main`, Expo retombe alors sur `node_modules/expo/AppEntry.js` qui cherche un `App` à la racine et le bundling échoue sur `Unable to resolve "../../App"`. L'équivalent manuel est `cd apps/mobile && npx expo start`.
 
-```bash
-cd apps/mobile
-npm install && npm start
+Scanne le QR code avec Expo Go. L'app vise automatiquement la machine qui sert Metro sur le port 47001, donc **rien à configurer si le téléphone et le PC sont sur le même Wi-Fi**.
+
+Si la connexion à l'API échoue depuis le téléphone, force l'adresse avec l'IP locale de ta machine :
+
+```powershell
+# Windows : relève l'IPv4 de ton adaptateur Wi-Fi
+ipconfig | Select-String IPv4
+
+$env:EXPO_PUBLIC_API_URL="http://192.168.1.42:47001"; npm start
 ```
 
-L'app vise automatiquement la machine qui sert Metro sur le port 3001 ; `EXPO_PUBLIC_API_URL` permet de forcer une autre adresse.
+Pense aussi à autoriser le port 47001 dans le pare-feu Windows — c'est la cause la plus fréquente d'un téléphone qui ne joint pas l'API.
 
 ## Vérifications
 
 ```bash
 npm run typecheck   # backend + mobile + admin
-npm run smoke       # 23 assertions de bout en bout sur l'API
+npm run smoke       # 54 assertions de bout en bout sur l'API
 ```
 
 Le smoke test suppose une base fraîchement migrée et seedée — il consomme les données de démonstration.
@@ -72,10 +108,20 @@ Le smoke test suppose une base fraîchement migrée et seedée — il consomme l
 ## Démarrage manuel du backend (sans Docker)
 
 ```bash
+npm install            # à la racine : génère aussi le client Prisma
+npm run setup:env      # crée apps/backend/.env depuis l'exemple
 cd apps/backend
-cp .env.example .env   # renseigner DATABASE_URL et FEDAPAY_SECRET_KEY
-npm install
 npm run prisma:migrate
 npm run prisma:seed
-npm run dev
+npm run dev            # http://localhost:47001
+```
+
+Le client Prisma est généré par le `postinstall` du backend. Si l'API démarre
+sur `SyntaxError: ... does not provide an export named 'PrismaClient'`, c'est
+qu'il manque : `npm run prisma:generate --workspace apps/backend`.
+
+Le back-office se lance à côté, depuis la racine :
+
+```bash
+npm run dev:admin      # http://localhost:47005
 ```

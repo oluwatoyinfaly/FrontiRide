@@ -8,7 +8,7 @@ import { Screen } from "../components/Screen";
 import { TextField } from "../components/TextField";
 import { useI18n } from "../i18n";
 import { useTheme } from "../theme";
-import { ApiError, api } from "../api/client";
+import { API_URL, ApiError, api } from "../api/client";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
 
@@ -42,6 +42,7 @@ export default function LoginScreen({ navigation }: Props) {
       navigation.navigate("Otp", {
         userId: result.userId,
         email: email.trim(),
+        channels: result.channels,
         devCodes: result.devCodes,
       });
     } catch (err) {
@@ -51,6 +52,10 @@ export default function LoginScreen({ navigation }: Props) {
         setError(t("auth.noAccount"));
       } else if (err instanceof ApiError && err.status === 409) {
         setError(t("auth.phoneTaken"));
+      } else if (err instanceof ApiError && err.status === 429) {
+        setError(t("auth.codeThrottled"));
+      } else if (err instanceof ApiError && err.status === 503) {
+        setError(t("auth.codeNotSent"));
       } else {
         setError(t("auth.registerFailed"));
       }
@@ -128,6 +133,16 @@ export default function LoginScreen({ navigation }: Props) {
           {isSignUp ? t("auth.signIn") : t("auth.createAccount")}
         </Text>
       </Pressable>
+
+      {/* En développement, l'adresse visée est la première chose à vérifier
+          quand le téléphone ne joint pas l'API. */}
+      {__DEV__ ? (
+        <Text
+          style={[text.caption, { color: colors.textFaint, textAlign: "center" }]}
+        >
+          API : {API_URL}
+        </Text>
+      ) : null}
     </Screen>
   );
 }

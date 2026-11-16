@@ -1,20 +1,45 @@
-import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { createFedapayTransaction } from "../lib/fedapay.js";
+import { FeexpayError, feexpayConfigured, requestToPay } from "../lib/feexpay.js";
+import { applyProviderStatus, settlePayment } from "../lib/payments.js";
 import { advanceFor } from "../lib/pricing.js";
 
 const initiateSchema = z.object({
   bookingId: z.string(),
-  method: z.enum(["MOMO_MTN", "MOMO_MOOV", "CARD", "CASH"]),
+  method: z.enum([
+    "MOMO_MTN",
+    "MOMO_MOOV",
+    "MOMO_CELTIIS",
+    "MOMO_MOOV_TG",
+    "MOMO_TOGOCOM",
+    "CARD",
+    "CASH",
+  ]),
   /** Location ville : régler la totalité au lieu des 30 % d'acompte. */
   payFull: z.boolean().default(false),
+  /**
+   * Numéro Mobile Money qui recevra l'invite. Souvent différent de celui du
+   * compte : on paie avec la SIM qui a de l'argent dessus, pas forcément celle
+   * qu'on a donnée à l'inscription.
+   */
+  phone: z.string().min(8).optional(),
 });
 
+const NETWORK = {
+  MOMO_MTN: "mtn",
+  MOMO_MOOV: "moov",
+  MOMO_CELTIIS: "celtiis_bj",
+  MOMO_MOOV_TG: "moov_tg",
+  MOMO_TOGOCOM: "togocom_tg",
+} as const;
+
 /**
- * Paiement séquestre. Le montant est immobilisé chez le prestataire jusqu'à
- * 24 h après la course, puis débloqué au chauffeur par l'admin — voir
- * `POST /admin/payments/:id/release`.
+ * Paiement séquestre. Le montant est immobilisé jusqu'à 24 h après la course,
+ * puis débloqué au chauffeur par l'admin — voir `POST /admin/payments/:id/release`.
+ *
+ * Mobile Money, via FeexPay : le client reçoit une invite sur son téléphone et
+ * la valide. L'application attend ensuite, en interrogeant
+ * `GET /payments/:id/status`, que FeexPay confirme.
  */
 export default async function paymentRoutes(fastify: FastifyInstance) {
   fastify.post(
@@ -46,8 +71,16 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
       // chauffeur collectera. Pas de séquestre possible dans ce cas.
       if (body.method === "CASH") {
         const [payment] = await fastify.prisma.$transaction([
-          fastify.prisma.payment.create({
-            data: {
+          fastify.prisma.payment.upsert({
+            where: { bookingId: booking.id },
+            update: {
+              method: "CASH",
+              status: "PENDING",
+              amountFcfa: total,
+              advanceFcfa: isLocation ? dueNow : null,
+              providerReference: null,
+            },
+            create: {
               bookingId: booking.id,
               method: "CASH",
               status: "PENDING",
@@ -60,19 +93,59 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
             data: { status: "CONFIRMED" },
           }),
         ]);
-        return reply.send({ payment, paymentUrl: null });
+        return reply.send({ payment, status: "CONFIRMED" });
+      }
+
+      if (body.method === "CARD") {
+        return reply.code(400).send({ error: "Paiement par carte indisponible" });
+      }
+
+      if (!feexpayConfigured()) {
+        return reply
+          .code(503)
+          .send({ error: "Paiement Mobile Money indisponible pour le moment" });
+      }
+
+      // Une invite est déjà partie sur le téléphone du client : en envoyer une
+      // seconde lui ferait valider deux fois la même somme.
+      if (booking.payment?.status === "PENDING" && booking.payment.providerReference) {
+        const outcome = await settlePayment(fastify, booking.payment.id);
+        if (outcome === "PENDING") {
+          return reply.code(409).send({
+            error: "Un paiement attend votre validation sur le téléphone",
+            paymentId: booking.payment.id,
+          });
+        }
+        if (outcome === "ESCROW_HELD") {
+          return reply.code(409).send({ error: "Cette réservation est déjà réglée" });
+        }
       }
 
       const client = await fastify.prisma.user.findUniqueOrThrow({
         where: { id: request.user.userId },
       });
 
-      const transaction = await createFedapayTransaction({
-        amountFcfa: dueNow,
-        description: `FrontiRide ${booking.reference}`,
-        customer: { email: client.email, phone: client.phone },
-        callbackUrl: `${process.env.APP_URL}/payments/webhook`,
-      });
+      let reference: string;
+      let initialStatus: "PENDING" | "SUCCESSFUL";
+      try {
+        ({ reference, status: initialStatus } = await requestToPay({
+          amountFcfa: dueNow,
+          phone: body.phone ?? client.phone,
+          network: NETWORK[body.method],
+          description: `FrontiRide ${booking.reference}`,
+          customer: { email: client.email, fullName: client.fullName },
+        }));
+      } catch (error) {
+        if (error instanceof FeexpayError) {
+          fastify.log.error({ err: error }, "Demande de paiement FeexPay échouée");
+          // Refus du prestataire : on renvoie son motif, c'est l'utilisateur
+          // qui doit corriger (numéro, solde…). Panne : message neutre.
+          return error.kind === "rejected"
+            ? reply.code(400).send({ error: error.message })
+            : reply.code(503).send({ error: "Paiement indisponible, réessayez" });
+        }
+        throw error;
+      }
 
       const payment = await fastify.prisma.payment.upsert({
         where: { bookingId: booking.id },
@@ -80,7 +153,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
           method: body.method,
           amountFcfa: total,
           advanceFcfa: isLocation ? dueNow : null,
-          fedapayReference: transaction.id,
+          providerReference: reference,
           status: "PENDING",
         },
         create: {
@@ -89,86 +162,41 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
           status: "PENDING",
           amountFcfa: total,
           advanceFcfa: isLocation ? dueNow : null,
-          fedapayReference: transaction.id,
+          providerReference: reference,
         },
       });
 
-      return reply.send({
-        payment,
-        dueNowFcfa: dueNow,
-        paymentUrl: transaction.paymentUrl,
-      });
+      // MTN et Moov répondent le résultat dès la création : inutile d'attendre
+      // un second tour pour confirmer. Celtiis reste en attente quelques secondes.
+      const outcome = await applyProviderStatus(fastify, payment, initialStatus);
+      return outcome === "ESCROW_HELD"
+        ? reply.send({ payment, dueNowFcfa: dueNow, status: "CONFIRMED" })
+        : reply.code(202).send({ payment, dueNowFcfa: dueNow, status: "PENDING" });
     }
   );
 
   /**
-   * Webhook Fedapay. La signature est vérifiée avant toute écriture : ce
-   * point d'entrée est public, n'importe qui peut l'appeler.
+   * Où en est un paiement. L'application l'interroge pendant que le client
+   * valide sur son téléphone ; chaque appel demande à FeexPay et applique le
+   * résultat.
    */
-  fastify.post("/payments/webhook", async (request, reply) => {
-    const secret = process.env.FEDAPAY_WEBHOOK_SECRET;
-    const signature = request.headers["x-fedapay-signature"];
+  fastify.get(
+    "/payments/:id/status",
+    { preHandler: fastify.authenticate },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.string() }).parse(request.params);
 
-    if (secret) {
-      const raw = JSON.stringify(request.body);
-      const expected = crypto
-        .createHmac("sha256", secret)
-        .update(raw)
-        .digest("hex");
-
-      const provided = Array.isArray(signature) ? signature[0] : signature;
-      const ok =
-        typeof provided === "string" &&
-        provided.length === expected.length &&
-        crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
-
-      if (!ok) {
-        fastify.log.warn("Webhook Fedapay avec signature invalide, ignoré");
-        return reply.code(401).send({ error: "Signature invalide" });
-      }
-    } else if (process.env.NODE_ENV === "production") {
-      fastify.log.error("FEDAPAY_WEBHOOK_SECRET manquant en production");
-      return reply.code(500).send({ error: "Webhook non configuré" });
-    }
-
-    const event = z
-      .object({
-        name: z.string(),
-        entity: z.object({ id: z.union([z.string(), z.number()]) }),
-      })
-      .parse(request.body);
-
-    const payment = await fastify.prisma.payment.findFirst({
-      where: { fedapayReference: String(event.entity.id) },
-    });
-
-    if (!payment) {
-      fastify.log.warn({ event: event.name }, "Webhook sans paiement correspondant");
-      return reply.send({ received: true });
-    }
-
-    if (event.name === "transaction.approved") {
-      const releaseAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await fastify.prisma.$transaction([
-        fastify.prisma.payment.update({
-          where: { id: payment.id },
-          data: { status: "ESCROW_HELD", escrowReleaseAt: releaseAt },
-        }),
-        fastify.prisma.booking.update({
-          where: { id: payment.bookingId },
-          data: { status: "CONFIRMED" },
-        }),
-      ]);
-    } else if (
-      event.name === "transaction.declined" ||
-      event.name === "transaction.canceled"
-    ) {
-      await fastify.prisma.payment.update({
-        where: { id: payment.id },
-        data: { status: "FAILED" },
+      const payment = await fastify.prisma.payment.findUnique({
+        where: { id },
+        include: { booking: { select: { clientId: true } } },
       });
-    }
 
-    return reply.send({ received: true });
-  });
+      if (!payment || payment.booking.clientId !== request.user.userId) {
+        return reply.code(404).send({ error: "Paiement introuvable" });
+      }
+
+      const status = await settlePayment(fastify, id);
+      return reply.send({ status });
+    }
+  );
 }

@@ -1,3 +1,13 @@
+# Démarrage local complet : base de données, API et back-office.
+#
+#   docker compose up --build
+#
+# L'application mobile n'est pas ici : Metro doit rester joignable depuis le
+# téléphone, il tourne donc directement sur la machine (voir README).
+#
+# Les ports côté hôte sont configurables si l'un d'eux est déjà pris :
+#   BACKEND_PORT=48001 ADMIN_PORT=48005 POSTGRES_PORT=48432 docker compose up
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -6,7 +16,7 @@ services:
       POSTGRES_PASSWORD: frontiride
       POSTGRES_DB: frontiride
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-47432}:5432"
     volumes:
       - frontiride_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,15 +35,55 @@ services:
     environment:
       DATABASE_URL: postgresql://frontiride:frontiride@postgres:5432/frontiride?schema=public
       JWT_SECRET: dev-secret-change-me
-      APP_URL: http://localhost:3000
-      FEDAPAY_ENV: sandbox
-      FEDAPAY_SECRET_KEY: ${FEDAPAY_SECRET_KEY:-}
-      PORT: 3000
+      # Adresse vue depuis l'extérieur du conteneur : le port publié, pas le
+      # port interne.
+      APP_URL: http://localhost:${BACKEND_PORT:-47001}
+      # Codes de connexion : sans SMTP, ils sont renvoyés par l'API (essais
+      # locaux uniquement). Voir apps/backend/.env.example.
+      OTP_CHANNELS: ${OTP_CHANNELS:-email,sms}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      # Vides par défaut : sans elles, l'appel dans l'application est
+      # simplement masqué côté mobile.
+      AGORA_APP_ID: ${AGORA_APP_ID:-}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
+      # Mobile Money via FeexPay ; sans eux, seul l'espèces fonctionne.
+      FEEXPAY_TOKEN: ${FEEXPAY_TOKEN:-}
+      FEEXPAY_SHOP_ID: ${FEEXPAY_SHOP_ID:-}
+      FEEXPAY_ENV: ${FEEXPAY_ENV:-}
+      PORT: 47001
     ports:
-      - "${BACKEND_PORT:-3001}:3000"
+      - "${BACKEND_PORT:-47001}:47001"
     volumes:
       - ./apps/backend/src:/app/apps/backend/src
       - ./apps/backend/prisma:/app/apps/backend/prisma
+    healthcheck:
+      test:
+        ["CMD-SHELL", "node -e \"fetch('http://localhost:47001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # Lue par le navigateur, pas par le conteneur : c'est donc l'adresse
+      # publiée sur la machine hôte, jamais le nom de service Docker.
+      VITE_API_URL: http://localhost:${BACKEND_PORT:-47001}
+    ports:
+      - "${ADMIN_PORT:-47005}:47005"
+    volumes:
+      - ./apps/admin/src:/app/apps/admin/src
+      - ./apps/admin/index.html:/app/apps/admin/index.html
 
 volumes:
   frontiride_postgres_data:

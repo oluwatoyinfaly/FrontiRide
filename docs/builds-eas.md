@@ -3,6 +3,24 @@
 Projet EAS : `36e54071-32b1-41ed-881e-08ba1ebe308b`, déclaré dans
 [`apps/mobile/app.json`](../apps/mobile/app.json) sous `extra.eas.projectId`.
 
+## Compte propriétaire du projet
+
+`app.json` déclare `"owner": "yindo"` : c'est le compte qui détient le projet
+EAS `36e54071-32b1-41ed-881e-08ba1ebe308b`. Un `eas build` lancé depuis un
+autre compte s'arrête avec :
+
+> Owner of project identified by "extra.eas.projectId" (yindo) does not match
+> the logged in user (…)
+
+Deux issues, selon l'intention :
+
+- **rester sur ce projet** (l'historique de builds, les mises à jour OTA et les
+  labels de PR y sont rattachés) : se connecter avec le bon compte,
+  `eas login`, ou faire du compte connecté un membre de `yindo` ;
+- **repartir sur un projet neuf** sous l'autre compte : `eas init`, qui écrit
+  un nouveau `projectId`. Il faut alors mettre à jour **aussi** `updates.url`
+  dans `app.json`, qui contient le même identifiant, et refaire les secrets EAS.
+
 ## Une précision sur la commande de départ
 
 La commande transmise créait un nouveau projet :
@@ -17,22 +35,18 @@ aurait tout écrasé. À la place, seule la partie utile a été appliquée — 
 `projectId` a été inscrit directement dans `app.json`, ce que `eas init --id`
 aurait fait.
 
-Deux champs restent à réconcilier depuis ta machine, car ils dépendent de ton
-compte Expo et je ne peux pas les deviner :
+Deux champs d'`app.json` doivent correspondre au projet EAS distant, sinon `eas
+build` s'arrête (« Slug for project … does not match the "slug" field ») :
 
-- **`owner`** — ton compte ou ton organisation Expo. Absent aujourd'hui.
-- **`slug`** — vaut `frontiride` ici ; le projet distant a peut-être été créé
-  sous `frontride` (la commande d'origine comporte cette graphie).
+- **`owner`** : `yindo`, le compte qui détient le projet.
+- **`slug`** : **`frontride`**, sans le « i ». Le projet a été créé sous ce nom (la
+  commande d'origine comportait cette graphie) et le slug d'un projet Expo ne se
+  renomme pas ensuite. Le nom affiché de l'application, lui, reste « FrontiRide » :
+  c'est le champ `name`, indépendant.
 
-Une seule commande les aligne :
-
-```bash
-cd apps/mobile
-npx eas-cli@latest init --id 36e54071-32b1-41ed-881e-08ba1ebe308b
-```
-
-Elle écrit `owner` et corrige `slug` d'après le projet distant. À lancer une
-fois, avant le premier build.
+Si tu repars sur un autre projet EAS, `npx eas-cli@latest init` réécrit ces champs
+d'après le projet distant, mais aussi un nouveau `projectId` — et `updates.url`,
+qui porte le même identifiant, est alors à corriger à la main.
 
 ## Profils de build
 
@@ -47,11 +61,14 @@ Définis dans [`apps/mobile/eas.json`](../apps/mobile/eas.json).
 Chaque profil déclare `"image": "latest"` : **c'est obligatoire pour les
 builds déclenchés depuis GitHub**, qui refusent un profil sans image.
 
-L'URL du backend est injectée par profil via `EXPO_PUBLIC_API_URL`. Les
-valeurs de `preview` et `production` sont des **espaces réservés**
-(`api-staging.frontiride.com`, `api.frontiride.com`) : à remplacer par les
-vraies URL une fois le backend déployé, sinon les builds pointeront dans le
-vide.
+L'URL du backend est injectée par profil via `EXPO_PUBLIC_API_URL`, à la
+compilation : changer d'API demande un nouveau build.
+
+- `preview` et `staging` visent le déploiement de test
+  (`https://frontiride-api.yindolabs.com`) ;
+- `development` n'en définit pas : l'app vise la machine qui sert Metro ;
+- `production` garde un **espace réservé** (`api.frontiride.com`), à remplacer
+  par la vraie URL avant tout build de production, sinon il pointera dans le vide.
 
 ## Premier build
 

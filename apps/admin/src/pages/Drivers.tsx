@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { api, fcfa, shortDate, type AdminDriver } from "../api";
+import { api, fcfa, openDocument, shortDate, type AdminDriver } from "../api";
 import {
   Badge,
   Card,
@@ -198,13 +198,19 @@ export default function Drivers() {
                             <div className="doc-item" key={type}>
                               <span>{label}</span>
                               {doc ? (
-                                <a
-                                  href={doc.fileUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
+                                  className="small"
+                                  onClick={() =>
+                                    openDocument(doc.fileUrl).catch(() =>
+                                      setNotice({
+                                        message: "Impossible d'ouvrir cette pièce.",
+                                        tone: "error",
+                                      })
+                                    )
+                                  }
                                 >
                                   Voir
-                                </a>
+                                </button>
                               ) : (
                                 <span className="badge warn">Manquante</span>
                               )}

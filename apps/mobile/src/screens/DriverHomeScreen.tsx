@@ -1,12 +1,12 @@
 import { useCallback, useState } from "react";
-import { RefreshControl, ScrollView, Switch, Text, View } from "react-native";
+import { Alert, RefreshControl, ScrollView, Switch, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { DriverStackParamList } from "../navigation/types";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
-import { ChoiceGroup } from "../components/ChoiceGroup";
+import { ContactActions } from "../components/ContactActions";
 import { EmptyState, InfoRow, Loading, Notice } from "../components/Feedback";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
@@ -44,6 +44,7 @@ export default function DriverHomeScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [busyRide, setBusyRide] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: "success" | "error" } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const hasDriverProfile = Boolean(user?.driverProfile);
 
@@ -75,7 +76,6 @@ export default function DriverHomeScreen({ navigation }: Props) {
   );
 
   if (!loaded) return <Loading label={t("common.loading")} />;
-  if (!hasDriverProfile) return <DriverOnboarding onDone={refresh} />;
   if (!profile) return <Screen><EmptyState title={t("common.networkError")} /></Screen>;
 
   async function handleOnline(next: boolean) {
@@ -91,6 +91,40 @@ export default function DriverHomeScreen({ navigation }: Props) {
         tone: "error",
       });
     }
+  }
+
+  /**
+   * Retire la candidature. L'API refuse si des courses ou des gains sont
+   * rattachés au profil : on relaie alors son message plutôt que de laisser
+   * croire à une panne.
+   */
+  function confirmCancelRegistration() {
+    Alert.alert(t("driver.cancelTitle"), t("driver.cancelBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("driver.cancelConfirm"),
+        style: "destructive",
+        onPress: async () => {
+          setCancelling(true);
+          setNotice(null);
+          try {
+            await api.driverCancelRegistration();
+            // La session perd son profil chauffeur : l'onglet disparaît et
+            // l'utilisateur se retrouve sur un compte client.
+            await refresh();
+          } catch (err) {
+            setNotice({
+              message:
+                err instanceof ApiError && err.status === 409
+                  ? err.message
+                  : t("common.genericError"),
+              tone: "error",
+            });
+            setCancelling(false);
+          }
+        },
+      },
+    ]);
   }
 
   async function runRideAction(
@@ -121,6 +155,19 @@ export default function DriverHomeScreen({ navigation }: Props) {
   const activeRides = mine.filter((r) =>
     ["DRIVER_ASSIGNED", "IN_PROGRESS"].includes(r.status)
   );
+
+  const pastRides = mine.filter((r) =>
+    ["COMPLETED", "CANCELLED", "DISPUTED"].includes(r.status)
+  );
+
+  /**
+   * Ce que la course a rapporté, commission déduite. Le taux vient du
+   * portefeuille : c'est celui que le backend applique au moment de créditer.
+   */
+  function earningsOf(totalFcfa: number): number {
+    const rate = profile?.wallet?.commissionRate ?? 0.12;
+    return Math.round(totalFcfa * (1 - rate));
+  }
 
   return (
     <ScrollView
@@ -189,6 +236,51 @@ export default function DriverHomeScreen({ navigation }: Props) {
         ) : null}
       </Card>
 
+      {/* La carte reste visible même quand le retrait n'est plus possible : un
+          bouton absent ne se distingue pas d'un bug, une explication si. */}
+      <Card>
+        <Text style={[text.label, { color: colors.textMuted }]}>
+          {t("driver.applicationTitle")}
+        </Text>
+        {mine.length === 0 ? (
+          <>
+            <Text style={[text.body, { color: colors.textMuted }]}>
+              {t("driver.becomeReversible")}
+            </Text>
+            <Button
+              label={t("driver.cancelRegistration")}
+              variant="danger"
+              loading={cancelling}
+              onPress={confirmCancelRegistration}
+            />
+          </>
+        ) : (
+          <Text style={[text.body, { color: colors.textMuted }]}>
+            {t("driver.cancelLocked", { count: mine.length })}
+          </Text>
+        )}
+      </Card>
+
+      {/* Sans véhicule déclaré, un chauffeur qui propose la location en ville
+          n'apparaît nulle part dans le catalogue : l'entrée doit se voir. */}
+      <Card onPress={() => navigation.navigate("DriverVehicles")}>
+        <View
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+        >
+          <View style={{ flex: 1, gap: space[1] }}>
+            <Text style={[text.label, { color: colors.textMuted }]}>
+              {t("driver.vehicles")}
+            </Text>
+            <Text style={[text.body, { color: colors.text }]}>
+              {profile.vehicles.length === 0
+                ? t("driver.noVehicles")
+                : t("driver.vehiclesCount", { count: profile.vehicles.length })}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
+        </View>
+      </Card>
+
       <Card onPress={() => navigation.navigate("DriverWallet")}>
         <Text style={[text.label, { color: colors.textMuted }]}>
           {t("driver.wallet")}
@@ -214,6 +306,24 @@ export default function DriverHomeScreen({ navigation }: Props) {
           {activeRides.map((ride) => (
             <Card key={ride.id}>
               <RideSummary ride={ride} />
+
+              {/* Une course acceptée se prépare à deux : le passager doit être
+                  joignable avant même le départ. */}
+              {ride.client.phone ? (
+                <ContactActions
+                  bookingId={ride.id}
+                  phone={ride.client.phone}
+                  name={ride.client.fullName}
+                  message={t("contact.message", {
+                    reference: ride.reference,
+                    trip: ride.trancon
+                      ? `${ride.trancon.originCity} → ${ride.trancon.destinationCity}`
+                      : `${t(`vehicleType.${ride.vehicleType}`)} · ${ride.city}`,
+                  })}
+                  crossBorder={ride.type === "FRONTALIER"}
+                />
+              ) : null}
+
               <Button
                 label={
                   ride.status === "DRIVER_ASSIGNED"
@@ -274,6 +384,30 @@ export default function DriverHomeScreen({ navigation }: Props) {
           ))
         )}
       </View>
+
+      {/* Historique : ce que le chauffeur a réellement conduit. Les courses en
+          cours sont plus haut, elles appellent une action ; ici on consulte. */}
+      {pastRides.length > 0 ? (
+        <View style={{ gap: space[3] }}>
+          <Text style={[text.label, { color: colors.textMuted }]}>
+            {t("driver.history", { count: pastRides.length })}
+          </Text>
+          {pastRides.map((ride) => (
+            <Card key={ride.id}>
+              <RideSummary ride={ride} />
+              {ride.status === "COMPLETED" ? (
+                <InfoRow
+                  label={t("driver.earned")}
+                  value={formatAmount(
+                    earningsOf(ride.finalPriceFcfa ?? ride.estimatedPriceFcfa ?? 0)
+                  )}
+                  emphasis
+                />
+              ) : null}
+            </Card>
+          ))}
+        </View>
+      ) : null}
     </ScrollView>
   );
 
@@ -314,108 +448,4 @@ export default function DriverHomeScreen({ navigation }: Props) {
       </>
     );
   }
-}
-
-/** Écran d'entrée pour un utilisateur qui n'a pas encore de dossier chauffeur. */
-function DriverOnboarding({ onDone }: { onDone: () => Promise<void> }) {
-  const { colors, space, text } = useTheme();
-  const { t } = useI18n();
-
-  const [baseCity, setBaseCity] = useState("Cotonou");
-  const [frontalier, setFrontalier] = useState(true);
-  const [location, setLocation] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await api.driverRegister({
-        baseCity,
-        offersFrontalier: frontalier,
-        offersLocationVille: location,
-      });
-      await onDone();
-    } catch {
-      setError(t("common.genericError"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Screen scroll>
-      <Ionicons name="car-sport" size={40} color={colors.brand} />
-      <Text style={[text.title, { color: colors.text }]}>
-        {t("driver.becomeTitle")}
-      </Text>
-      <Text style={[text.body, { color: colors.textMuted }]}>
-        {t("driver.becomeBody")}
-      </Text>
-
-      <ChoiceGroup
-        label={t("driver.baseCity")}
-        options={[
-          { value: "Cotonou", label: "Cotonou" },
-          { value: "Lomé", label: "Lomé" },
-        ]}
-        value={baseCity}
-        onChange={setBaseCity}
-      />
-
-      <Text style={[text.label, { color: colors.textMuted }]}>
-        {t("driver.offers")}
-      </Text>
-
-      <ToggleRow
-        label={t("driver.offerFrontalier")}
-        value={frontalier}
-        onChange={setFrontalier}
-      />
-      <ToggleRow
-        label={t("driver.offerLocation")}
-        value={location}
-        onChange={setLocation}
-      />
-
-      {error ? <Notice message={error} tone="error" /> : null}
-
-      <Button
-        label={t("driver.becomeCta")}
-        onPress={handleSubmit}
-        loading={submitting}
-        disabled={!frontalier && !location}
-      />
-    </Screen>
-  );
-}
-
-function ToggleRow({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (next: boolean) => void;
-}) {
-  const { colors, space, text } = useTheme();
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: space[4],
-      }}
-    >
-      <Text style={[text.body, { color: colors.text, flexShrink: 1 }]}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ false: colors.border, true: colors.brand }}
-      />
-    </View>
-  );
 }

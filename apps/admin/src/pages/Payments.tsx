@@ -14,6 +14,9 @@ import {
 const METHOD_LABEL: Record<string, string> = {
   MOMO_MTN: "MTN MoMo",
   MOMO_MOOV: "Moov Money",
+  MOMO_CELTIIS: "Celtiis Cash",
+  MOMO_MOOV_TG: "Moov Togo",
+  MOMO_TOGOCOM: "Togocom",
   CARD: "Carte",
   CASH: "Espèces",
 };
@@ -127,19 +130,27 @@ export default function Payments() {
                 <td>
                   {payment.status === "ESCROW_HELD" ? (
                     <div className="actions">
-                      <button
-                        className="small primary"
-                        disabled={busy === payment.id}
-                        onClick={() =>
-                          act(
-                            payment.id,
-                            () => api.releasePayment(payment.id),
-                            "Séquestre débloqué, chauffeur crédité."
-                          )
-                        }
-                      >
-                        Débloquer
-                      </button>
+                      {/* Le déblocage crédite le portefeuille du chauffeur :
+                          sans chauffeur assigné, il n'a pas de destinataire. */}
+                      {payment.booking.driver ? (
+                        <button
+                          className="small primary"
+                          disabled={busy === payment.id}
+                          onClick={() =>
+                            act(
+                              payment.id,
+                              () => api.releasePayment(payment.id),
+                              "Séquestre débloqué, chauffeur crédité."
+                            )
+                          }
+                        >
+                          Débloquer
+                        </button>
+                      ) : (
+                        <span className="muted" style={{ fontSize: "0.8rem" }}>
+                          En attente d'un chauffeur
+                        </span>
+                      )}
                       <button
                         className="small danger"
                         disabled={busy === payment.id}

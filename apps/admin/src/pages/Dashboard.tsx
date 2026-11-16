@@ -98,7 +98,7 @@ export default function Dashboard() {
         ) : (
           <div className="rank">
             {stats.topTroncons.map((row, index) => (
-              <div className="rank-row" key={row.trancon?.originCity ?? index}>
+              <div className="rank-row" key={row.trancon?.id ?? `sans-trancon-${index}`}>
                 <span>
                   {row.trancon
                     ? `${row.trancon.originCity} → ${row.trancon.destinationCity}`

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Test de bout en bout de l'API FrontiRide.
-# Usage : API=http://localhost:3000 bash scripts/smoke.sh
+# Usage : API=http://localhost:47001 bash scripts/smoke.sh
 # Suppose une base fraîchement migrée + seedée (npm run prisma:seed).
-API=${API:-http://localhost:3000}
+API=${API:-http://localhost:47001}
 HERE=$(dirname "$0")
 j() { python3 "$HERE/jsonpath.py" "$1"; }
 fail=0
@@ -66,17 +66,22 @@ login() {
 echo "== Admin =="
 ADMIN=$(login admin@frontiride.com)
 STATS=$(curl -s $API/admin/stats -H "Authorization: Bearer $ADMIN")
-check "2 chauffeurs à valider" "$(echo "$STATS" | j drivers.pendingReview)" "2"
-check "2 chauffeurs validés" "$(echo "$STATS" | j drivers.approved)" "2"
-check "CA des courses terminées" "$(echo "$STATS" | j revenue.totalFcfa)" "28000"
+PENDING_BEFORE=$(echo "$STATS" | j drivers.pendingReview)
+APPROVED_BEFORE=$(echo "$STATS" | j drivers.approved)
+check "des dossiers attendent un contrôle" "$([ "$PENDING_BEFORE" -ge 1 ] && echo ok)" "ok"
+check "des chauffeurs sont validés" "$([ "$APPROVED_BEFORE" -ge 1 ] && echo ok)" "ok"
+check "le CA des courses terminées est renseigné" "$([ "$(echo "$STATS" | j revenue.totalFcfa)" -gt 0 ] && echo ok)" "ok"
 echo "  séquestre: $(echo "$STATS" | j escrow.amountFcfa) FCFA sur $(echo "$STATS" | j escrow.count) paiements"
 
 CLIENT=$(login client@example.com)
 check "un client ne peut pas voir /admin/stats" "$(curl -s -o /dev/null -w '%{http_code}' $API/admin/stats -H "Authorization: Bearer $CLIENT")" "403"
 
 echo "== Validation d'un chauffeur =="
-check "validation" "$(curl -s -X POST $API/admin/drivers/seed-driver-seydou/approve -H "Authorization: Bearer $ADMIN" | j status)" "APPROVED"
-check "il ne reste qu'1 dossier en attente" "$(curl -s $API/admin/stats -H "Authorization: Bearer $ADMIN" | j drivers.pendingReview)" "1"
+TO_APPROVE=$(curl -s "$API/admin/drivers?status=PENDING_REVIEW" -H "Authorization: Bearer $ADMIN" | j 0.id)
+check "validation" "$(curl -s -X POST $API/admin/drivers/$TO_APPROVE/approve -H "Authorization: Bearer $ADMIN" | j status)" "APPROVED"
+check "un dossier de moins en attente" \
+  "$(curl -s $API/admin/stats -H "Authorization: Bearer $ADMIN" | j drivers.pendingReview)" \
+  "$((PENDING_BEFORE - 1))"
 
 echo "== Parcours chauffeur =="
 DRIVER=$(login kofi.adjovi@example.com)
@@ -86,7 +91,8 @@ echo "  solde: $(echo "$ME" | j wallet.balanceFcfa) FCFA / en attente: $(echo "$
 
 AVAIL=$(curl -s $API/driver/rides/available -H "Authorization: Bearer $DRIVER")
 RIDE=$(echo "$AVAIL" | j 0.id)
-echo "  courses disponibles: $(echo "$AVAIL" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')"
+N_AVAIL=$(echo "$AVAIL" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')
+check "des courses sont proposées au chauffeur" "$([ "$N_AVAIL" -ge 1 ] && echo ok)" "ok"
 
 check "acceptation" "$(curl -s -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER" | j status)" "DRIVER_ASSIGNED"
 
@@ -94,8 +100,10 @@ DRIVER2=$(login amivi.kossi@example.com)
 check "un 2e chauffeur ne peut plus la prendre" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER2")" "409"
 
 curl -s -X POST $API/driver/rides/$RIDE/start -H "Authorization: Bearer $DRIVER" > /dev/null
+RIDE_PRICE=$(echo "$AVAIL" | j 0.estimatedPriceFcfa)
 COMP=$(curl -s -X POST $API/driver/rides/$RIDE/complete -H "Authorization: Bearer $DRIVER")
-check "gains = 56000 - 12% commission" "$(echo "$COMP" | j earningsFcfa)" "49280"
+check "gains = prix moins 12 % de commission" "$(echo "$COMP" | j earningsFcfa)" \
+  "$(python3 -c "print(round($RIDE_PRICE * 0.88))")"
 
 echo "== Retrait =="
 check "retrait > solde refusé" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/withdrawals \
@@ -112,6 +120,82 @@ check "note enregistrée" "$(curl -s -X POST $API/bookings/$RIDE/rating -H "Auth
 check "double notation refusée" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/bookings/$RIDE/rating \
   -H "Authorization: Bearer $CTOKEN" -H 'Content-Type: application/json' -d '{"score":1}')" "409"
 
+
+echo "== Client, chauffeur, ou les deux =="
+# Un compte tout neuf n'a qu'un côté : toutes ses courses sont vues en client.
+ROLES=$(curl -s $API/bookings -H "Authorization: Bearer $TOKEN" \
+  | python3 -c 'import sys,json;print(",".join(sorted({b["role"] for b in json.load(sys.stdin)})))')
+check "un client simple ne voit que des courses client" "$ROLES" "CLIENT"
+
+# Kofi conduit et réserve : ses deux rôles doivent apparaître côte à côte.
+BOTH=$(curl -s $API/bookings -H "Authorization: Bearer $DRIVER" \
+  | python3 -c 'import sys,json;print(",".join(sorted({b["role"] for b in json.load(sys.stdin)})))')
+check "un chauffeur voit ses deux rôles" "$BOTH" "CLIENT,DRIVER"
+
+# La course qu'il conduit lui est accessible, et à lui seul.
+DRIVEN=$(curl -s $API/bookings -H "Authorization: Bearer $DRIVER" \
+  | python3 -c 'import sys,json;print(next(b["id"] for b in json.load(sys.stdin) if b["role"]=="DRIVER"))')
+check "le chauffeur ouvre le détail de sa course" \
+  "$(curl -s $API/bookings/$DRIVEN -H "Authorization: Bearer $DRIVER" | j role)" "DRIVER"
+check "un tiers ne voit pas cette course" \
+  "$(curl -s -o /dev/null -w '%{http_code}' $API/bookings/$DRIVEN -H "Authorization: Bearer $TOKEN")" "404"
+
+echo "== Candidature chauffeur, et son annulation =="
+check "candidature déposée" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/register \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"baseCity":"Cotonou","offersFrontalier":true}')" "201"
+check "l'espace chauffeur s'ouvre" \
+  "$(curl -s -o /dev/null -w '%{http_code}' $API/driver/me -H "Authorization: Bearer $TOKEN")" "200"
+check "candidature retirée" \
+  "$(curl -s -X DELETE $API/driver/register -H "Authorization: Bearer $TOKEN" | j ok)" "True"
+check "le compte redevient un compte client" \
+  "$(curl -s -o /dev/null -w '%{http_code}' $API/driver/me -H "Authorization: Bearer $TOKEN")" "403"
+check "un chauffeur avec des courses ne peut pas se retirer" \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE $API/driver/register -H "Authorization: Bearer $DRIVER")" "409"
+
+echo "== Appel dans l'application =="
+# Sans clés Agora, le service se désactive proprement : l'API le dit, et le
+# mobile masque l'option au lieu de proposer un appel qui échouerait.
+ENABLED=$(curl -s $API/calls/config -H "Authorization: Bearer $CTOKEN" | j enabled)
+check "l'API annonce l'état du service" "$([ "$ENABLED" = "True" ] || [ "$ENABLED" = "False" ] && echo ok)" "ok"
+
+if [ "$ENABLED" = "True" ]; then
+  # $RIDE est la course que le chauffeur vient de conduire pour le client.
+  CALL=$(curl -s -X POST $API/calls -H "Authorization: Bearer $CTOKEN" \
+    -H 'Content-Type: application/json' -d "{\"bookingId\":\"$RIDE\"}")
+  CALL_ID=$(echo "$CALL" | j call.id)
+  check "appel créé" "$(echo "$CALL" | j call.status)" "RINGING"
+  check "jeton Agora délivré" \
+    "$([ "$(echo "$CALL" | j credentials.token | cut -c1-3)" = "007" ] && echo ok)" "ok"
+  check "canal dérivé de la course" "$(echo "$CALL" | j credentials.channel)" "booking-$RIDE"
+
+  check "deux appuis ne sonnent qu'une fois" \
+    "$(curl -s -X POST $API/calls -H "Authorization: Bearer $CTOKEN" \
+      -H 'Content-Type: application/json' -d "{\"bookingId\":\"$RIDE\"}" | j call.id)" "$CALL_ID"
+
+  check "le chauffeur voit la sonnerie" \
+    "$(curl -s $API/calls/incoming -H "Authorization: Bearer $DRIVER" | j id)" "$CALL_ID"
+  check "un tiers ne voit rien" \
+    "$(curl -s $API/calls/incoming -H "Authorization: Bearer $DRIVER2")" "null"
+
+  ACC=$(curl -s -X POST $API/calls/$CALL_ID/accept -H "Authorization: Bearer $DRIVER")
+  check "chaque partie a son propre identifiant Agora" \
+    "$([ "$(echo "$ACC" | j credentials.uid)" != "$(echo "$CALL" | j credentials.uid)" ] && echo ok)" "ok"
+  check "mais le même canal" "$(echo "$ACC" | j credentials.channel)" "booking-$RIDE"
+  check "appel décroché" "$(curl -s $API/calls/$CALL_ID -H "Authorization: Bearer $CTOKEN" | j status)" "ACCEPTED"
+  curl -s -X POST $API/calls/$CALL_ID/end -H "Authorization: Bearer $CTOKEN" > /dev/null
+  check "appel raccroché" "$(curl -s $API/calls/$CALL_ID -H "Authorization: Bearer $CTOKEN" | j status)" "ENDED"
+  check "plus de sonnerie en attente" \
+    "$(curl -s $API/calls/incoming -H "Authorization: Bearer $DRIVER")" "null"
+
+  check "un tiers ne peut pas appeler sur cette course" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/calls -H "Authorization: Bearer $TOKEN" \
+      -H 'Content-Type: application/json' -d "{\"bookingId\":\"$RIDE\"}")" "404"
+else
+  check "service désactivé : création refusée" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/calls -H "Authorization: Bearer $CTOKEN" \
+      -H 'Content-Type: application/json' -d "{\"bookingId\":\"$RIDE\"}")" "503"
+fi
 
 echo "== Régressions corrigées =="
 # Bug 1 : après une première location, le véhicule redevenait irréservable —

@@ -14,9 +14,16 @@
       "ios": {
         "image": "latest",
         "simulator": true
+      }
+    },
+    "staging": {
+      "distribution": "internal",
+      "android": {
+        "image": "latest",
+        "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://localhost:3001"
+        "EXPO_PUBLIC_API_URL": "https://frontiride-api.yindolabs.com"
       }
     },
     "preview": {
@@ -30,7 +37,7 @@
         "image": "latest"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-staging.frontiride.com"
+        "EXPO_PUBLIC_API_URL": "https://frontiride-api.yindolabs.com"
       }
     },
     "production": {

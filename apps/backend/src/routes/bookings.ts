@@ -32,6 +32,9 @@ const ratingSchema = z.object({
 /** Détail renvoyé au client : assez pour l'écran de suivi, sans fuite de données. */
 const bookingInclude = {
   trancon: true,
+  // Le nom et le téléphone du client servent au chauffeur affecté ; le client,
+  // lui, lit simplement les siens.
+  client: { select: { fullName: true, phone: true } },
   payment: true,
   rating: true,
   vehicle: { select: { id: true, type: true, brand: true, model: true, seats: true } },
@@ -197,28 +200,67 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
       .send({ booking, price, advanceFcfa: advanceFor(price.totalFcfa) });
   });
 
+  /**
+   * Identifiant du profil chauffeur de l'utilisateur connecté, s'il en a un.
+   * Un même compte peut réserver comme client et conduire comme chauffeur :
+   * ses courses viennent donc des deux côtés.
+   */
+  async function driverIdOf(userId: string): Promise<string | null> {
+    const driver = await fastify.prisma.driver.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    return driver?.id ?? null;
+  }
+
+  /** Côté depuis lequel l'utilisateur voit cette course. */
+  function roleIn(
+    booking: { clientId: string },
+    userId: string
+  ): "CLIENT" | "DRIVER" {
+    return booking.clientId === userId ? "CLIENT" : "DRIVER";
+  }
+
   fastify.get("/bookings", auth, async (request, reply) => {
+    const userId = request.user.userId;
+    const driverId = await driverIdOf(userId);
+
     const bookings = await fastify.prisma.booking.findMany({
-      where: { clientId: request.user.userId },
+      where: driverId
+        ? { OR: [{ clientId: userId }, { driverId }] }
+        : { clientId: userId },
       include: bookingInclude,
       orderBy: { createdAt: "desc" },
     });
-    return reply.send(bookings);
+
+    return reply.send(
+      bookings.map((booking) => ({ ...booking, role: roleIn(booking, userId) }))
+    );
   });
 
   fastify.get("/bookings/:id", auth, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
+    const userId = request.user.userId;
 
     const booking = await fastify.prisma.booking.findUnique({
       where: { id },
       include: bookingInclude,
     });
 
-    if (!booking || booking.clientId !== request.user.userId) {
+    if (!booking) {
       return reply.code(404).send({ error: "Réservation introuvable" });
     }
 
-    return reply.send(booking);
+    // Le chauffeur affecté y a droit lui aussi : c'est sa course.
+    const mine =
+      booking.clientId === userId ||
+      (booking.driverId !== null && booking.driverId === (await driverIdOf(userId)));
+
+    if (!mine) {
+      return reply.code(404).send({ error: "Réservation introuvable" });
+    }
+
+    return reply.send({ ...booking, role: roleIn(booking, userId) });
   });
 
   fastify.post("/bookings/:id/cancel", auth, async (request, reply) => {

@@ -35,6 +35,13 @@ FrontiRide met en relation :
 10. Abonnement optionnel (Pass Découverte / Pro / Entreprise).
 
 ### 2.2 Chauffeur / Agence
+
+Un chauffeur est d'abord un client : le compte est le même, on y ajoute une
+candidature. Tant qu'aucune course n'y est rattachée, cette candidature se
+retire et le compte redevient un simple compte client. L'espace chauffeur
+n'apparaît dans l'application que pour qui en a déposé une, et « Mes courses »
+distingue par une pastille les courses réservées de celles conduites.
+
 1. Inscription (email + téléphone), OTP.
 2. Vérification obligatoire : CNI, permis, carte grise, assurance, visite technique, casier judiciaire, photo du véhicule et du profil.
 3. Déclare son offre : Frontalier et/ou Location Ville ; profil véhicule (type, places, photos, prix/jour) ; option flotte multi-véhicules pour les agences.
@@ -61,7 +68,7 @@ FrontiRide met en relation :
 | Chauffeur | Retrait MoMo, virement | Commission prélevée automatiquement (10-15% Frontalier, 15-20% Location Ville). Retrait min. 5 000 FCFA, versement J+2. |
 | Admin | Dashboard | Vue de toutes les transactions, remboursements, litiges, factures PDF auto pour entreprises/ONG. |
 
-Prestataires : **Fedapay** et/ou **Paystack** pour couvrir MoMo MTN/Moov (Bénin, Togo) et cartes/MoMo (Nigeria).
+Prestataires : **FeexPay** pour le MoMo MTN/Moov (Bénin, Togo) ; Paystack pourra s'ajouter pour le Nigeria.
 
 ## 4. Fidélité & abonnement
 
@@ -81,7 +88,7 @@ Prestataires : **Fedapay** et/ou **Paystack** pour couvrir MoMo MTN/Moov (Bénin
 
 - Mobile Android + iOS (client + chauffeur), back-office web responsive (admin).
 - Langues : Français (V1), Anglais (V1.1 — utile dès le lancement pour le corridor Nigeria).
-- Paiement : Fedapay / Paystack, gestion séquestre + avance.
+- Paiement : FeexPay, gestion séquestre + avance.
 - Cartographie : Google Maps API (itinéraires, suivi temps réel, points d'intérêt "frontière").
 - Sécurité : chiffrement au repos (AES-256), RGPD, stockage sécurisé des pièces d'identité, casier judiciaire chauffeur.
 - Notifications : push + SMS + email (réservation, rappel J-1/H-3, paiement, validation chauffeur).
@@ -97,7 +104,7 @@ Prestataires : **Fedapay** et/ou **Paystack** pour couvrir MoMo MTN/Moov (Bénin
 
 1. **Devise** : tout en **FCFA**, y compris l'abonnement client (Pass Pro 15 000 FCFA / Pass Entreprise 50 000 FCFA). Les montants EUR de la v1 sont abandonnés.
 2. **Pilote de lancement** : un seul corridor pour le MVP — **Cotonou ↔ Lomé** (y compris le passage par le point frontière Hilacondji). Le corridor Bénin↔Nigeria est reporté après validation du pilote.
-3. **Paiement** : **Fedapay** uniquement au démarrage (couvre MoMo MTN/Moov Bénin-Togo et cartes). Paystack sera ajouté à l'ouverture du corridor Nigeria.
+3. **Paiement** : **FeexPay** au démarrage, par demande de validation sur le téléphone du client (MoMo MTN/Moov). Pas de carte bancaire au pilote. Paystack pourra être ajouté à l'ouverture du corridor Nigeria.
 4. **Stack technique validée** : voir `plan-de-developpement.md` — React Native (mobile), Fastify + TypeScript (API), PostgreSQL (données).
 
 ### Points encore ouverts (non bloquants pour démarrer le dev)
