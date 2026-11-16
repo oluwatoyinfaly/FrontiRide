@@ -40,6 +40,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      # Production : aucun code de connexion n'est jamais renvoyé par l'API, et
+      # l'API refuse de démarrer sans un vrai JWT_SECRET.
+      NODE_ENV: production
       DATABASE_URL: postgresql://frontiride:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/frontiride?schema=public
       JWT_SECRET: ${SERVICE_PASSWORD_JWT}
       PORT: 47001

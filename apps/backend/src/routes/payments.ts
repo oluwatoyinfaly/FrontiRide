@@ -69,6 +69,26 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
       // Espèces : rien à encaisser en ligne, la course est confirmée et le
       // chauffeur collectera. Pas de séquestre possible dans ce cas.
+      // Une invite Mobile Money est peut-être déjà validée sur le téléphone :
+      // basculer en espèces effacerait sa trace, et l'argent serait encaissé
+      // sans que la course le sache.
+      if (
+        body.method === "CASH" &&
+        booking.payment?.status === "PENDING" &&
+        booking.payment.providerReference
+      ) {
+        const outcome = await settlePayment(fastify, booking.payment.id);
+        if (outcome !== "FAILED") {
+          return reply.code(409).send({
+            error:
+              outcome === "ESCROW_HELD"
+                ? "Cette réservation est déjà réglée"
+                : "Un paiement Mobile Money est en cours pour cette réservation",
+            paymentId: booking.payment.id,
+          });
+        }
+      }
+
       if (body.method === "CASH") {
         const [payment] = await fastify.prisma.$transaction([
           fastify.prisma.payment.upsert({
@@ -155,6 +175,10 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
           advanceFcfa: isLocation ? dueNow : null,
           providerReference: reference,
           status: "PENDING",
+          // Le délai d'abandon se compte depuis CETTE demande : sans cette
+          // remise à zéro, une nouvelle tentative après un échec ancien serait
+          // tenue pour expirée — et un paiement validé ensuite, perdu.
+          createdAt: new Date(),
         },
         create: {
           bookingId: booking.id,

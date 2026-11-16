@@ -49,8 +49,17 @@ function recordFailure(userId: string): number {
   return next.count;
 }
 
+/**
+ * Chaque envoi de code coûte un email (quota Brevo) et peut harceler le
+ * destinataire : ces routes ont leur propre plafond par IP, bien plus bas que
+ * le plafond général. Pas trop bas non plus : derrière le NAT d'un opérateur
+ * mobile, beaucoup d'abonnés partagent la même adresse.
+ */
+const AUTH_LIMIT = Number(process.env.AUTH_RATE_LIMIT ?? 20);
+const authLimit = { config: { rateLimit: { max: AUTH_LIMIT, timeWindow: "10 minutes" } } };
+
 export default async function authRoutes(fastify: FastifyInstance) {
-  fastify.post("/auth/register", async (request, reply) => {
+  fastify.post("/auth/register", authLimit, async (request, reply) => {
     const body = registerSchema.parse(request.body);
 
     const existing = await fastify.prisma.user.findFirst({
@@ -61,6 +70,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
       return reply
         .code(409)
         .send({ error: "Ce numéro est déjà associé à un autre compte" });
+    }
+
+    // Sans authentification, on ne modifie JAMAIS un compte déjà vérifié :
+    // sinon n'importe qui pourrait remplacer le numéro ou le nom d'un client
+    // (ou de l'admin) en connaissant seulement son email. Un compte existant
+    // reçoit simplement un nouveau code, comme à la connexion.
+    if (existing?.emailVerified) {
+      const otp = await issueOtp(fastify, existing);
+      return reply.code(201).send({ userId: existing.id, ...otp });
     }
 
     const user = await fastify.prisma.user.upsert({
@@ -78,7 +96,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.code(201).send({ userId: user.id, ...otp });
   });
 
-  fastify.post("/auth/login", async (request, reply) => {
+  fastify.post("/auth/login", authLimit, async (request, reply) => {
     const body = loginSchema.parse(request.body);
 
     const user = await fastify.prisma.user.findUnique({
@@ -93,7 +111,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     return reply.send({ userId: user.id, ...otp });
   });
 
-  fastify.post("/auth/resend-otp", async (request, reply) => {
+  fastify.post("/auth/resend-otp", authLimit, async (request, reply) => {
     const { userId } = z.object({ userId: z.string() }).parse(request.body);
 
     const user = await fastify.prisma.user.findUnique({ where: { id: userId } });
@@ -107,7 +125,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
   // Tous les canaux actifs sont vérifiés en une fois : un compte à moitié
   // vérifié ne sert à rien et compliquerait la reprise du parcours.
-  fastify.post("/auth/verify-otp", async (request, reply) => {
+  fastify.post("/auth/verify-otp", { config: { rateLimit: { max: AUTH_LIMIT * 3, timeWindow: "10 minutes" } } }, async (request, reply) => {
     const body = verifyOtpSchema.parse(request.body);
     const channels = activeChannels();
 

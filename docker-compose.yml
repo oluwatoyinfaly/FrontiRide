@@ -34,6 +34,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://frontiride:frontiride@postgres:5432/frontiride?schema=public
+      NODE_ENV: development
       JWT_SECRET: dev-secret-change-me
       # Adresse vue depuis l'extérieur du conteneur : le port publié, pas le
       # port interne.
