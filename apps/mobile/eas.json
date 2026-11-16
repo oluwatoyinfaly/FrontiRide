@@ -23,7 +23,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-test.A-REMPLACER.tld"
+        "EXPO_PUBLIC_API_URL": "https://frontiride-api.yindolabs.com"
       }
     },
     "preview": {
