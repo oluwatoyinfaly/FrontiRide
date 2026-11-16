@@ -16,6 +16,16 @@
         "simulator": true
       }
     },
+    "staging": {
+      "distribution": "internal",
+      "android": {
+        "image": "latest",
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api-test.A-REMPLACER.tld"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "channel": "preview",

@@ -1,0 +1,56 @@
+# API + base pour un déploiement de TEST sur Coolify.
+#
+# Coolify → New Resource → Docker Compose → ce dépôt, en pointant sur CE
+# fichier. Dans l'onglet du service « backend », renseigner le domaine avec son
+# port : https://api-test.mondomaine.tld:47001 — Coolify le route via Traefik.
+# Voir docs/deploiement-test.md avant de s'en servir.
+#
+# Aucun port n'est publié sur l'hôte : le proxy de Coolify s'en charge, et c'est
+# ce qui évite tout conflit avec ce qui tourne déjà sur le VPS.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: frontiride
+      # Variable « magique » de Coolify : un mot de passe est généré et gardé.
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_DB: frontiride
+    volumes:
+      - frontiride_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frontiride -d frontiride"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    # Même démarrage que l'image, sans la surveillance de fichiers.
+    command: npm run start:staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://frontiride:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/frontiride?schema=public
+      JWT_SECRET: ${SERVICE_PASSWORD_JWT}
+      PORT: 47001
+      # NODE_ENV volontairement absent : en « production » l'API cesse de
+      # renvoyer les codes OTP, et sans passerelle SMS plus personne ne peut
+      # se connecter.
+      AGORA_APP_ID: ${AGORA_APP_ID:-}
+      AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
+    expose:
+      - "47001"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "node -e \"fetch('http://localhost:47001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+volumes:
+  frontiride_postgres_data:
