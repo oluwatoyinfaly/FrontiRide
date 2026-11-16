@@ -116,8 +116,8 @@ n'est pas un oubli.
 | MTN Bénin | `MOMO_MTN` | `229` + `01` + 8 chiffres |
 | Moov Bénin | `MOMO_MOOV` | `229` + `01` + 8 chiffres |
 | Celtiis Bénin | `MOMO_CELTIIS` | `229` + `01` + 8 chiffres |
-| Moov Togo | `MOMO_MOOV_TG` | `228` + 8 chiffres **(à confirmer)** |
-| Togocom | `MOMO_TOGOCOM` | `228` + 8 chiffres **(à confirmer)** |
+| Moov Togo | `MOMO_MOOV_TG` | `228` + 8 chiffres **(format à confirmer)** |
+| Togocom | `MOMO_TOGOCOM` | `228` + 8 chiffres **(format à confirmer)** |
 
 Un utilisateur saisit encore « 97 00 00 00 » : l'application convertit au format à
 10 chiffres. Un numéro béninois ne peut pas payer sur un réseau togolais, et
@@ -151,12 +151,12 @@ Tout est testé contre un faux serveur calqué sur la documentation V2 de FeexPa
 (`scripts/feexpay-mock.mjs`), **jamais contre l'API réelle**. Le premier paiement
 sandbox doit confirmer :
 
-1. **Le Togo.** La documentation liste les codes réseau `MOOV TG` et `TOGOCOM TG`,
-   mais la table des canaux transmise s'arrête avant eux : les adresses
-   (`/requesttopay/moov_tg`, `/requesttopay/togocom_tg`) et le format du numéro
-   (`228` + 8 chiffres) sont **déduits** du schéma des autres canaux. Si FeexPay
-   répond 404 ou « numéro invalide », c'est là : envoie la ligne du Togo de la
-   table « Payin (collection) ».
+1. **Le format des numéros togolais.** Les adresses de Moov Togo et Togocom sont
+   confirmées (`/requesttopay/moov_tg`, `/requesttopay/togocom_tg`), mais la
+   documentation transmise ne montre pas le format du numéro : on envoie
+   `228` + 8 chiffres. Si FeexPay répond « numéro invalide » sur un numéro qui
+   se termine par `00`, c'est là : envoie la ligne du Togo de la table « Payin
+   (collection) », colonne « Phone number format ».
 2. **Le suivi sur la sandbox.** La route `/api/transactions/public/single/status/`
    est documentée sur la production ; on suppose le même chemin sur la sandbox.
 

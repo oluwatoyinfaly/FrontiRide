@@ -24,10 +24,10 @@ export const MIN_AMOUNT_FCFA = 10;
 export const MAX_AMOUNT_FCFA = 1_000_000;
 
 /**
- * À CONFIRMER pour le Togo : la documentation transmise liste les codes réseau
- * « MOOV TG » et « TOGOCOM TG » mais ne montre pas leurs adresses ni le format
- * des numéros. Les adresses suivent le schéma des autres canaux (celtiis_bj,
- * mtn_ci…) et le numéro est supposé « 228 » + 8 chiffres.
+ * Les quatre adresses des réseaux Bénin et Togo sont confirmées par FeexPay :
+ * /api/transactions/public/requesttopay/{mtn|moov|celtiis_bj|moov_tg|togocom_tg}.
+ *
+ * À CONFIRMER pour le Togo : le format du numéro, supposé « 228 » + 8 chiffres.
  */
 export type FeexpayNetwork = "mtn" | "moov" | "celtiis_bj" | "moov_tg" | "togocom_tg";
 
@@ -76,7 +76,7 @@ export class FeexpayError extends Error {
  * « 97 00 00 00 » : on convertit plutôt que de lui renvoyer un refus
  * incompréhensible.
  *
- * Togo : « 228 » + 8 chiffres (à confirmer).
+ * Togo : « 228 » + 8 chiffres (à confirmer : la documentation ne le montre pas).
  *
  * Un numéro d'un autre pays que celui du réseau est refusé avec une phrase
  * claire : payer avec une SIM béninoise sur un réseau togolais est impossible.
