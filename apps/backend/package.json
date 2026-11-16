@@ -24,10 +24,12 @@
     "agora-token": "^2.0.5",
     "fastify": "^4.28.1",
     "fastify-plugin": "^4.5.1",
+    "nodemailer": "^10.6.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.14.15",
+    "@types/nodemailer": "^8.0.2",
     "prisma": "^5.19.1",
     "tsx": "^4.16.5",
     "typescript": "^5.5.4"

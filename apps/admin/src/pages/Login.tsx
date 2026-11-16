@@ -9,6 +9,8 @@ export default function Login({ onSignedIn }: { onSignedIn: (user: AdminUser) =>
   const [emailCode, setEmailCode] = useState("");
   const [smsCode, setSmsCode] = useState("");
   const [devMode, setDevMode] = useState(false);
+  // En mode « email seul » (essais), le code SMS n'est pas demandé.
+  const [needsSms, setNeedsSms] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,10 +21,12 @@ export default function Login({ onSignedIn }: { onSignedIn: (user: AdminUser) =>
     try {
       const result = await api.login(email.trim());
       setUserId(result.userId);
-      // Hors production, l'API renvoie les codes : on les préremplit.
+      setNeedsSms(result.channels.includes("sms"));
+      // Hors production, l'API renvoie les codes des canaux qu'elle n'envoie
+      // pas réellement : on les préremplit.
       if (result.devCodes) {
-        setEmailCode(result.devCodes.email);
-        setSmsCode(result.devCodes.sms);
+        if (result.devCodes.email) setEmailCode(result.devCodes.email);
+        if (result.devCodes.sms) setSmsCode(result.devCodes.sms);
         setDevMode(true);
       }
       setStep("codes");
@@ -32,7 +36,11 @@ export default function Login({ onSignedIn }: { onSignedIn: (user: AdminUser) =>
           ? "Aucun compte pour cet email."
           : err instanceof ApiError && err.status === 0
             ? "Serveur injoignable."
-            : "Connexion impossible."
+            : err instanceof ApiError && err.status === 429
+              ? "Un code vient d'être envoyé. Patientez quelques secondes."
+              : err instanceof ApiError && err.status === 503
+                ? "Le code n'a pas pu être envoyé."
+                : "Connexion impossible."
       );
     } finally {
       setBusy(false);
@@ -44,15 +52,23 @@ export default function Login({ onSignedIn }: { onSignedIn: (user: AdminUser) =>
     setBusy(true);
     setError(null);
     try {
-      const { token, user } = await api.verifyOtp(userId, emailCode, smsCode);
+      const { token, user } = await api.verifyOtp(
+        userId,
+        emailCode,
+        needsSms ? smsCode : undefined
+      );
       if (user.role !== "ADMIN") {
         setError("Ce compte n'a pas accès à l'administration.");
         return;
       }
       setToken(token);
       onSignedIn(user);
-    } catch {
-      setError("Code invalide ou expiré.");
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 429
+          ? "Trop d'essais. Redemandez un code."
+          : "Code invalide ou expiré."
+      );
     } finally {
       setBusy(false);
     }
@@ -93,7 +109,9 @@ export default function Login({ onSignedIn }: { onSignedIn: (user: AdminUser) =>
               </p>
             ) : (
               <p className="muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
-                Deux codes ont été envoyés à {email} et par SMS.
+                {needsSms
+                  ? `Deux codes ont été envoyés à ${email} et par SMS.`
+                  : `Un code a été envoyé à ${email}.`}
               </p>
             )}
             <div className="field">
@@ -107,21 +125,25 @@ export default function Login({ onSignedIn }: { onSignedIn: (user: AdminUser) =>
                 required
               />
             </div>
-            <div className="field">
-              <label htmlFor="sc">Code SMS</label>
-              <input
-                id="sc"
-                inputMode="numeric"
-                maxLength={6}
-                value={smsCode}
-                onChange={(e) => setSmsCode(e.target.value)}
-                required
-              />
-            </div>
+            {needsSms ? (
+              <div className="field">
+                <label htmlFor="sc">Code SMS</label>
+                <input
+                  id="sc"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={smsCode}
+                  onChange={(e) => setSmsCode(e.target.value)}
+                  required
+                />
+              </div>
+            ) : null}
             <button
               className="primary"
               type="submit"
-              disabled={busy || emailCode.length !== 6 || smsCode.length !== 6}
+              disabled={
+                busy || emailCode.length !== 6 || (needsSms && smsCode.length !== 6)
+              }
             >
               {busy ? "Vérification…" : "Se connecter"}
             </button>

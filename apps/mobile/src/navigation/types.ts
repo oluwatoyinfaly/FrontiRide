@@ -1,8 +1,16 @@
-export type OtpCodes = { email: string; sms: string } | null;
+export type OtpChannel = "email" | "sms";
+/** Codes que l'API renvoie en développement, pour les seuls canaux non envoyés. */
+export type OtpCodes = Partial<Record<OtpChannel, string>> | null;
 
 export type AuthStackParamList = {
   Login: undefined;
-  Otp: { userId: string; email: string; devCodes: OtpCodes };
+  Otp: {
+    userId: string;
+    email: string;
+    /** Canaux dont il faut saisir le code. */
+    channels: OtpChannel[];
+    devCodes: OtpCodes;
+  };
 };
 
 export type HomeStackParamList = {

@@ -42,6 +42,7 @@ export default function LoginScreen({ navigation }: Props) {
       navigation.navigate("Otp", {
         userId: result.userId,
         email: email.trim(),
+        channels: result.channels,
         devCodes: result.devCodes,
       });
     } catch (err) {
@@ -51,6 +52,10 @@ export default function LoginScreen({ navigation }: Props) {
         setError(t("auth.noAccount"));
       } else if (err instanceof ApiError && err.status === 409) {
         setError(t("auth.phoneTaken"));
+      } else if (err instanceof ApiError && err.status === 429) {
+        setError(t("auth.codeThrottled"));
+      } else if (err instanceof ApiError && err.status === 503) {
+        setError(t("auth.codeNotSent"));
       } else {
         setError(t("auth.registerFailed"));
       }

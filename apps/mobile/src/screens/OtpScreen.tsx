@@ -14,13 +14,16 @@ import { ApiError, api } from "../api/client";
 type Props = NativeStackScreenProps<AuthStackParamList, "Otp">;
 
 export default function OtpScreen({ route }: Props) {
-  const { userId, email, devCodes } = route.params;
+  const { userId, email, channels, devCodes } = route.params;
   const { colors, space, text } = useTheme();
   const { t } = useI18n();
   const { signIn } = useSession();
 
   const [emailCode, setEmailCode] = useState("");
   const [smsCode, setSmsCode] = useState("");
+
+  // En mode « email seul » (essais), il n'y a pas de code SMS à saisir.
+  const needsSms = channels.includes("sms");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -28,17 +31,19 @@ export default function OtpScreen({ route }: Props) {
   // Hors production le backend renvoie les codes : on les préremplit pour
   // pouvoir dérouler le parcours sans passerelle SMS.
   useEffect(() => {
-    if (devCodes) {
-      setEmailCode(devCodes.email);
-      setSmsCode(devCodes.sms);
-    }
+    if (devCodes?.email) setEmailCode(devCodes.email);
+    if (devCodes?.sms) setSmsCode(devCodes.sms);
   }, [devCodes]);
 
   async function handleVerify() {
     setError(null);
     setLoading(true);
     try {
-      const { token, user } = await api.verifyOtp(userId, emailCode, smsCode);
+      const { token, user } = await api.verifyOtp(
+        userId,
+        emailCode,
+        needsSms ? smsCode : undefined
+      );
       await signIn(token, user);
       // Pas de navigation ici : le navigateur racine bascule tout seul sur
       // l'app dès que la session existe.
@@ -46,7 +51,9 @@ export default function OtpScreen({ route }: Props) {
       setError(
         err instanceof ApiError && err.status === 0
           ? t("common.networkError")
-          : t("auth.invalidCode")
+          : err instanceof ApiError && err.status === 429
+            ? t("auth.tooManyAttempts")
+            : t("auth.invalidCode")
       );
     } finally {
       setLoading(false);
@@ -57,20 +64,24 @@ export default function OtpScreen({ route }: Props) {
     setError(null);
     try {
       const { devCodes: fresh } = await api.resendOtp(userId);
-      if (fresh) {
-        setEmailCode(fresh.email);
-        setSmsCode(fresh.sms);
-      }
+      if (fresh?.email) setEmailCode(fresh.email);
+      if (fresh?.sms) setSmsCode(fresh.sms);
       setInfo(t("auth.resent"));
-    } catch {
-      setError(t("common.genericError"));
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 429
+          ? t("auth.codeThrottled")
+          : err instanceof ApiError && err.status === 503
+            ? t("auth.codeNotSent")
+            : t("common.genericError")
+      );
     }
   }
 
   return (
     <Screen scroll>
       <Text style={[text.body, { color: colors.textMuted }]}>
-        {t("auth.otpSubtitle", { email })}
+        {t(needsSms ? "auth.otpSubtitle" : "auth.otpSubtitleEmailOnly", { email })}
       </Text>
 
       {devCodes ? (
@@ -88,14 +99,16 @@ export default function OtpScreen({ route }: Props) {
         onChangeText={setEmailCode}
       />
 
-      <TextField
-        label={t("auth.smsCode")}
-        placeholder={t("auth.sixDigits")}
-        keyboardType="number-pad"
-        maxLength={6}
-        value={smsCode}
-        onChangeText={setSmsCode}
-      />
+      {needsSms ? (
+        <TextField
+          label={t("auth.smsCode")}
+          placeholder={t("auth.sixDigits")}
+          keyboardType="number-pad"
+          maxLength={6}
+          value={smsCode}
+          onChangeText={setSmsCode}
+        />
+      ) : null}
 
       {error ? <Notice message={error} tone="error" /> : null}
       {info && !error ? <Notice message={info} tone="success" /> : null}
@@ -104,7 +117,7 @@ export default function OtpScreen({ route }: Props) {
         label={t("auth.verify")}
         onPress={handleVerify}
         loading={loading}
-        disabled={emailCode.length !== 6 || smsCode.length !== 6}
+        disabled={emailCode.length !== 6 || (needsSms && smsCode.length !== 6)}
       />
 
       <Pressable

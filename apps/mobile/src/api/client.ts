@@ -108,7 +108,12 @@ const post = <T>(path: string, body?: unknown) =>
 const patch = <T>(path: string, body: unknown) =>
   request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 
-type OtpCodes = { email: string; sms: string } | null;
+import type { OtpChannel, OtpCodes } from "../navigation/types";
+
+interface OtpResponse {
+  channels: OtpChannel[];
+  devCodes: OtpCodes;
+}
 
 export const api = {
   // --- Authentification ---
@@ -117,15 +122,15 @@ export const api = {
     phone: string;
     fullName?: string;
     locale: string;
-  }) => post<{ userId: string; devCodes: OtpCodes }>("/auth/register", input),
+  }) => post<{ userId: string } & OtpResponse>("/auth/register", input),
 
   login: (email: string) =>
-    post<{ userId: string; devCodes: OtpCodes }>("/auth/login", { email }),
+    post<{ userId: string } & OtpResponse>("/auth/login", { email }),
 
   resendOtp: (userId: string) =>
-    post<{ devCodes: OtpCodes }>("/auth/resend-otp", { userId }),
+    post<OtpResponse>("/auth/resend-otp", { userId }),
 
-  verifyOtp: (userId: string, emailCode: string, smsCode: string) =>
+  verifyOtp: (userId: string, emailCode: string, smsCode?: string) =>
     post<{ token: string; user: User }>("/auth/verify-otp", {
       userId,
       emailCode,

@@ -157,12 +157,17 @@ export interface AdminUser {
 
 export const api = {
   login: (email: string) =>
-    post<{ userId: string; devCodes: { email: string; sms: string } | null }>(
+    post<{
+      userId: string;
+      /** Canaux dont il faut saisir le code. */
+      channels: ("email" | "sms")[];
+      devCodes: { email?: string; sms?: string } | null;
+    }>(
       "/auth/login",
       { email }
     ),
 
-  verifyOtp: (userId: string, emailCode: string, smsCode: string) =>
+  verifyOtp: (userId: string, emailCode: string, smsCode?: string) =>
     post<{ token: string; user: AdminUser }>("/auth/verify-otp", {
       userId,
       emailCode,

@@ -25,7 +25,15 @@ import {
 const prisma = new PrismaClient();
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@frontiride.com";
-const CLIENT_EMAIL = "client@example.com";
+const CLIENT_EMAIL = process.env.SEED_CLIENT_EMAIL ?? "client@example.com";
+/**
+ * Kofi Adjovi : le chauffeur qui réserve aussi comme client, donc celui qui
+ * sert à essayer l'appel entre deux comptes. Ses adresses sont fictives par
+ * défaut ; sur un déploiement où les codes partent vraiment par email, elles
+ * ne mènent nulle part. À définir AVANT le premier démarrage : le seed
+ * identifie les comptes par leur adresse.
+ */
+const DRIVER_EMAIL = process.env.SEED_DRIVER_EMAIL ?? "kofi.adjovi@example.com";
 
 const ALL_DOCUMENTS: DocumentType[] = [
   "CNI",
@@ -120,7 +128,7 @@ const DRIVERS: DriverSpec[] = [
   {
     key: "kofi",
     fullName: "Kofi Adjovi",
-    email: "kofi.adjovi@example.com",
+    email: DRIVER_EMAIL,
     phone: "+22997000001",
     baseCity: "Cotonou",
     status: "APPROVED",

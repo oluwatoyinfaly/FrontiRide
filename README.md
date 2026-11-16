@@ -11,6 +11,7 @@ Plateforme de mise en relation pour le transport frontalier (Volet 1) et la loca
 - [`docs/charte-graphique.md`](docs/charte-graphique.md) — logo, couleurs, typographie, assets.
 - [`docs/builds-eas.md`](docs/builds-eas.md) — builds EAS, labels de PR, intégration continue.
 - [`docs/appels.md`](docs/appels.md) — appels client ↔ chauffeur : Agora, WhatsApp, téléphone.
+- [`docs/deploiement-test.md`](docs/deploiement-test.md) — déploiement de test sur Coolify, codes par email.
 
 ## Structure du repo
 

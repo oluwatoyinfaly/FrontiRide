@@ -37,9 +37,24 @@ services:
       DATABASE_URL: postgresql://frontiride:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/frontiride?schema=public
       JWT_SECRET: ${SERVICE_PASSWORD_JWT}
       PORT: 47001
-      # NODE_ENV volontairement absent : en « production » l'API cesse de
-      # renvoyer les codes OTP, et sans passerelle SMS plus personne ne peut
-      # se connecter.
+      # NODE_ENV volontairement absent pour l'instant : le passer à
+      # « production » est possible dès que SMTP_* est renseigné, et c'est
+      # alors recommandé.
+      # Codes de connexion par email, le temps du test : un seul code, envoyé
+      # pour de vrai, jamais renvoyé par l'API. SMTP_* à renseigner dans
+      # Coolify (Brevo, Resend, Gmail…). Sans eux l'API retombe en mode
+      # « codes dans la réponse » : voir docs/deploiement-test.md.
+      OTP_CHANNELS: email
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      # Adresses réelles des comptes de démonstration : sans elles, les codes
+      # partiraient vers @example.com. À définir avant le premier démarrage.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@frontiride.com}
+      SEED_CLIENT_EMAIL: ${SEED_CLIENT_EMAIL:-client@example.com}
+      SEED_DRIVER_EMAIL: ${SEED_DRIVER_EMAIL:-kofi.adjovi@example.com}
       AGORA_APP_ID: ${AGORA_APP_ID:-}
       AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
     expose:

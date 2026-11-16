@@ -38,6 +38,14 @@ services:
       # Adresse vue depuis l'extérieur du conteneur : c'est elle que Fedapay
       # rappelle, donc le port publié et non le port interne.
       APP_URL: http://localhost:${BACKEND_PORT:-47001}
+      # Codes de connexion : sans SMTP, ils sont renvoyés par l'API (essais
+      # locaux uniquement). Voir apps/backend/.env.example.
+      OTP_CHANNELS: ${OTP_CHANNELS:-email,sms}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
       # Vides par défaut : sans elles, l'appel dans l'application est
       # simplement masqué côté mobile.
       AGORA_APP_ID: ${AGORA_APP_ID:-}
