@@ -27,18 +27,18 @@ check "sans token = 401" "$(curl -s -o /dev/null -w '%{http_code}' $API/bookings
 
 echo "== Réservation frontalier =="
 BK=$(curl -s -X POST $API/bookings/frontalier -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"tranconId\":\"trancon-cotonou-lome\",\"departureAt\":\"$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)\",\"isRoundTrip\":true,\"seats\":2}")
+  -d "{\"pickupAddress\":\"Hôtel Test, Cotonou\",\"tranconId\":\"trancon-cotonou-lome\",\"departureAt\":\"$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)\",\"isRoundTrip\":true,\"seats\":2}")
 BID=$(echo "$BK" | j booking.id)
 check "prix aller-retour 2x(25000+3000)" "$(echo "$BK" | j price.totalFcfa)" "56000"
 check "référence FR-" "$(echo "$BK" | j booking.reference | cut -c1-3)" "FR-"
 
 check "date passée refusée" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/bookings/frontalier \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"tranconId":"trancon-cotonou-lome","departureAt":"2020-01-01T00:00:00Z"}')" "400"
+  -d '{"pickupAddress":"Hôtel Test, Cotonou","tranconId":"trancon-cotonou-lome","departureAt":"2020-01-01T00:00:00Z"}')" "400"
 
 check "5 places refusées (max 4)" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/bookings/frontalier \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"tranconId\":\"trancon-cotonou-lome\",\"departureAt\":\"$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)\",\"seats\":5}")" "400"
+  -d "{\"pickupAddress\":\"Hôtel Test, Cotonou\",\"tranconId\":\"trancon-cotonou-lome\",\"departureAt\":\"$(date -u -d '+3 days' +%Y-%m-%dT%H:%M:%SZ)\",\"seats\":5}")" "400"
 
 echo "== Paiement espèces =="
 curl -s -X POST $API/payments/initiate -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
@@ -94,10 +94,20 @@ RIDE=$(echo "$AVAIL" | j 0.id)
 N_AVAIL=$(echo "$AVAIL" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')
 check "des courses sont proposées au chauffeur" "$([ "$N_AVAIL" -ge 1 ] && echo ok)" "ok"
 
-check "acceptation" "$(curl -s -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER" | j status)" "DRIVER_ASSIGNED"
+check "le lieu de prise en charge est caché tant que la course est libre" "$(echo "$AVAIL" | j 0.pickupAddress)" ""
+check "huit pièces exigées (photo de profil comprise)" "$(echo "$ME" | python3 -c 'import sys,json;print("PHOTO_PROFIL" in [d["type"] for d in json.load(sys.stdin)["documents"]])')" "True"
+
+VID=$(echo "$ME" | j vehicles.0.id)
+check "plusieurs véhicules : le choix est obligatoire" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER" -H 'Content-Type: application/json' -d '{}')" "$([ "$(echo "$ME" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["vehicles"]))')" -gt 1 ] && echo 400 || echo 200)"
+ACCEPTED=$(curl -s -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER" -H 'Content-Type: application/json' -d "{\"vehicleId\":\"$VID\"}")
+case "$ACCEPTED" in *'"error"'*) ACCEPTED=$(curl -s $API/driver/rides -H "Authorization: Bearer $DRIVER" | python3 -c "import sys,json;print(json.dumps([r for r in json.load(sys.stdin) if r['id']=='$RIDE'][0]))");; esac
+check "acceptation" "$(echo "$ACCEPTED" | j status)" "DRIVER_ASSIGNED"
+check "après acceptation, le chauffeur voit le lieu de rendez-vous" "$(echo "$ACCEPTED" | j pickupAddress)" "Devant l'hôtel du Lac, Cotonou"
 
 DRIVER2=$(login amivi.kossi@example.com)
-check "un 2e chauffeur ne peut plus la prendre" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER2")" "409"
+VID2=$(curl -s $API/driver/me -H "Authorization: Bearer $DRIVER2" | j vehicles.0.id)
+check "un 2e chauffeur ne peut plus la prendre" "$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/driver/rides/$RIDE/accept -H "Authorization: Bearer $DRIVER2" -H 'Content-Type: application/json' -d "{\"vehicleId\":\"$VID2\"}")" "409"
+check "réglages : refusés à un non-admin" "$(curl -s -o /dev/null -w '%{http_code}' $API/admin/settings -H "Authorization: Bearer $DRIVER")" "403"
 
 curl -s -X POST $API/driver/rides/$RIDE/start -H "Authorization: Bearer $DRIVER" > /dev/null
 RIDE_PRICE=$(echo "$AVAIL" | j 0.estimatedPriceFcfa)
@@ -204,10 +214,10 @@ V=$(curl -s "$API/vehicles?city=Cotonou" | j 0.id)
 D1=$(date -u -d '+40 days' +%Y-%m-%dT%H:%M:%SZ)
 D2=$(date -u -d '+80 days' +%Y-%m-%dT%H:%M:%SZ)
 curl -s -X POST $API/bookings/location-ville -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' -d "{\"vehicleId\":\"$V\",\"startAt\":\"$D1\",\"durationDays\":2}" > /dev/null
+  -H 'Content-Type: application/json' -d "{\"pickupAddress\":\"Hôtel Test, Cotonou\",\"vehicleId\":\"$V\",\"startAt\":\"$D1\",\"durationDays\":2}" > /dev/null
 code=$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/bookings/location-ville \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"vehicleId\":\"$V\",\"startAt\":\"$D2\",\"durationDays\":2}")
+  -d "{\"pickupAddress\":\"Hôtel Test, Cotonou\",\"vehicleId\":\"$V\",\"startAt\":\"$D2\",\"durationDays\":2}")
 check "période disjointe acceptée" "$code" "201"
 
 # Bug 2 : la référence est courte, donc les collisions arrivent ; la création
@@ -216,7 +226,7 @@ fails=0
 for i in $(seq 1 25); do
   c=$(curl -s -o /dev/null -w '%{http_code}' -X POST $API/bookings/frontalier \
     -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-    -d "{\"tranconId\":\"trancon-cotonou-lome\",\"departureAt\":\"$(date -u -d '+9 days' +%Y-%m-%dT%H:%M:%SZ)\",\"seats\":1}")
+    -d "{\"pickupAddress\":\"Hôtel Test, Cotonou\",\"tranconId\":\"trancon-cotonou-lome\",\"departureAt\":\"$(date -u -d '+9 days' +%Y-%m-%dT%H:%M:%SZ)\",\"seats\":1}")
   [ "$c" = "201" ] || fails=$((fails+1))
 done
 check "25 réservations d'affilée sans échec" "$fails" "0"

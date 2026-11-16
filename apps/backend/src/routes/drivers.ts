@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { COMMISSION_RATE, driverEarnings } from "../lib/pricing.js";
-import { STORED_URL, removeStoredFile, uploadDir } from "./files.js";
+import { STORED_NAME, STORED_URL, removeStoredFile, sendStored, uploadDir } from "./files.js";
+import { withoutPhone, withoutPickup } from "../lib/present.js";
+import { phonesMasked } from "../lib/settings.js";
 import { access } from "node:fs/promises";
 import path from "node:path";
 
@@ -13,9 +15,13 @@ const DOCUMENT_TYPES = [
   "VISITE_TECHNIQUE",
   "CASIER_JUDICIAIRE",
   "PHOTO_VEHICULE",
+  "PHOTO_PROFIL",
 ] as const;
 
-/** Sans ces sept pièces, le dossier ne part pas en validation. */
+/**
+ * Sans ces huit pièces, le dossier ne part pas en validation. La photo de
+ * profil en fait partie : c'est le visage que le client cherche au rendez-vous.
+ */
 const REQUIRED_DOCUMENTS = DOCUMENT_TYPES;
 
 const MIN_WITHDRAWAL_FCFA = 5000;
@@ -38,6 +44,7 @@ const vehicleSchema = z.object({
   type: z.enum(["ECONOMIQUE", "CONFORT", "SUV", "PREMIUM", "MINIBUS"]),
   brand: z.string().optional(),
   model: z.string().optional(),
+  color: z.string().trim().min(2).max(30).optional(),
   plateNumber: z.string().min(3),
   seats: z.number().int().min(1).max(50),
   pricePerDay: z.number().int().positive().optional(),
@@ -141,6 +148,43 @@ export default async function driverRoutes(fastify: FastifyInstance) {
       ...driver,
       missingDocuments: REQUIRED_DOCUMENTS.filter((t) => !uploaded.has(t)),
     });
+  });
+
+  /**
+   * Photo de profil d'un chauffeur. Elle n'est lisible que par lui, un admin,
+   * et un client dont une course est affectée à ce chauffeur : le client doit
+   * pouvoir reconnaître la personne qui vient, pas n'importe qui le chercher.
+   */
+  fastify.get("/drivers/:id/photo", auth, async (request, reply) => {
+    const { id } = z.object({ id: z.string() }).parse(request.params);
+    const { userId, role } = request.user;
+
+    const photo = await fastify.prisma.document.findUnique({
+      where: { driverId_type: { driverId: id, type: "PHOTO_PROFIL" } },
+      select: { fileUrl: true, driver: { select: { userId: true } } },
+    });
+    const name = photo ? path.basename(photo.fileUrl) : "";
+    if (!photo || !STORED_NAME.test(name)) {
+      return reply.code(404).send({ error: "Photo introuvable" });
+    }
+
+    let allowed = role === "ADMIN" || photo.driver.userId === userId;
+    if (!allowed) {
+      const shared = await fastify.prisma.booking.findFirst({
+        where: {
+          clientId: userId,
+          driverId: id,
+          status: { notIn: ["AWAITING_PAYMENT", "CANCELLED"] },
+        },
+        select: { id: true },
+      });
+      allowed = shared !== null;
+    }
+    if (!allowed) {
+      return reply.code(404).send({ error: "Photo introuvable" });
+    }
+
+    return sendStored(reply, name);
   });
 
   // Le fichier part vers le stockage objet côté client ; on n'enregistre ici
@@ -285,7 +329,9 @@ export default async function driverRoutes(fastify: FastifyInstance) {
       orderBy: { departureAt: "asc" },
     });
 
-    return reply.send(rides);
+    // Le repère de prise en charge n'est connu qu'après acceptation : tant
+    // qu'une course est libre, n'importe quel chauffeur peut la consulter.
+    return reply.send(rides.map((ride) => withoutPickup(ride)));
   });
 
   fastify.get("/driver/rides", asDriver, async (request, reply) => {
@@ -295,14 +341,41 @@ export default async function driverRoutes(fastify: FastifyInstance) {
         trancon: true,
         rating: true,
         client: { select: { fullName: true, phone: true } },
+        vehicle: { select: { id: true, brand: true, model: true, color: true, plateNumber: true } },
       },
       orderBy: { createdAt: "desc" },
     });
-    return reply.send(rides);
+    const masked = await phonesMasked(fastify.prisma);
+    return reply.send(rides.map((ride) => ({ ...ride, client: withoutPhone(ride.client, masked) })));
   });
 
   fastify.post("/driver/rides/:id/accept", asDriver, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
+    const { vehicleId } = z
+      .object({ vehicleId: z.string().optional() })
+      .parse(request.body ?? {});
+
+    // Le client reconnaîtra la voiture à sa plaque : la course doit donc
+    // nommer le véhicule réellement utilisé. Un seul véhicule → il est choisi
+    // d'office ; plusieurs → le chauffeur désigne celui qu'il conduit.
+    const vehicles = await fastify.prisma.vehicle.findMany({
+      where: { driverId: request.driverId },
+      select: { id: true },
+    });
+    if (vehicles.length === 0) {
+      return reply
+        .code(409)
+        .send({ error: "Ajoutez d'abord un véhicule à votre profil" });
+    }
+    const chosen =
+      vehicles.length === 1
+        ? vehicles[0].id
+        : vehicles.find((v) => v.id === vehicleId)?.id;
+    if (!chosen) {
+      return reply
+        .code(400)
+        .send({ error: "Choisissez le véhicule avec lequel vous faites cette course" });
+    }
 
     // updateMany + filtre sur driverId null : deux chauffeurs qui acceptent en
     // même temps, un seul passe — la base arbitre, pas le serveur.
@@ -310,6 +383,7 @@ export default async function driverRoutes(fastify: FastifyInstance) {
       where: { id, driverId: null, status: "CONFIRMED" },
       data: {
         driverId: request.driverId,
+        vehicleId: chosen,
         status: "DRIVER_ASSIGNED",
         acceptedAt: new Date(),
       },
@@ -319,11 +393,18 @@ export default async function driverRoutes(fastify: FastifyInstance) {
       return reply.code(409).send({ error: "Cette course a déjà été prise" });
     }
 
-    const booking = await fastify.prisma.booking.findUnique({
+    const booking = await fastify.prisma.booking.findUniqueOrThrow({
       where: { id },
-      include: { trancon: true, client: { select: { fullName: true, phone: true } } },
+      include: {
+        trancon: true,
+        client: { select: { fullName: true, phone: true } },
+        vehicle: { select: { id: true, brand: true, model: true, color: true, plateNumber: true } },
+      },
     });
-    return reply.send(booking);
+    return reply.send({
+      ...booking,
+      client: withoutPhone(booking.client, await phonesMasked(fastify.prisma)),
+    });
   });
 
   fastify.post("/driver/rides/:id/start", asDriver, async (request, reply) => {

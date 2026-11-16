@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { agoraCredentials } from "../lib/agora.js";
+import { phonesMasked } from "../lib/settings.js";
 
 const BOOKING_STATUSES = [
   "DRAFT",
@@ -32,6 +34,38 @@ const tranconSchema = z.object({
 export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", fastify.authenticate);
   fastify.addHook("preHandler", fastify.requireRole("ADMIN"));
+
+  /** Réglages de la plateforme. */
+  fastify.get("/admin/settings", async (_request, reply) => {
+    return reply.send({
+      maskPhoneNumbers: await phonesMasked(fastify.prisma),
+      // Le masquage n'a de sens que si l'appel dans l'application fonctionne.
+      inAppCallsAvailable: agoraCredentials() !== null,
+    });
+  });
+
+  fastify.patch("/admin/settings", async (request, reply) => {
+    const body = z.object({ maskPhoneNumbers: z.boolean() }).parse(request.body);
+
+    // Sans appel dans l'application, masquer les numéros couperait toute
+    // communication entre le client et le chauffeur : on refuse.
+    if (body.maskPhoneNumbers && agoraCredentials() === null) {
+      return reply.code(409).send({
+        error:
+          "Impossible de masquer les numéros : l'appel dans l'application n'est pas configuré (AGORA_APP_ID / AGORA_APP_CERTIFICATE).",
+      });
+    }
+
+    const settings = await fastify.prisma.appSettings.upsert({
+      where: { id: 1 },
+      update: { maskPhoneNumbers: body.maskPhoneNumbers },
+      create: { id: 1, maskPhoneNumbers: body.maskPhoneNumbers },
+    });
+    return reply.send({
+      maskPhoneNumbers: settings.maskPhoneNumbers,
+      inAppCallsAvailable: agoraCredentials() !== null,
+    });
+  });
 
   /** Chiffres du tableau de bord, en une requête pour l'écran d'accueil. */
   fastify.get("/admin/stats", async (_request, reply) => {

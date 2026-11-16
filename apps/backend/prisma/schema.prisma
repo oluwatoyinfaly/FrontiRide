@@ -40,6 +40,7 @@ enum DocumentType {
   VISITE_TECHNIQUE
   CASIER_JUDICIAIRE
   PHOTO_VEHICULE
+  PHOTO_PROFIL
 }
 
 enum DocumentStatus {
@@ -167,6 +168,8 @@ model Vehicle {
   plateNumber String
   seats       Int
   pricePerDay Int? // FCFA, pour Location Ville
+  /// Avec la plaque et le modèle, ce qui permet au client de reconnaître le véhicule.
+  color       String?
   photoUrl    String?
   createdAt   DateTime    @default(now())
 
@@ -217,6 +220,13 @@ model Booking {
 
   estimatedPriceFcfa Int?
   finalPriceFcfa     Int?
+
+  /// Où récupérer le client. Le texte est le repère de référence ; les
+  /// coordonnées, facultatives, ouvrent l'itinéraire dans l'app de cartes.
+  /// Masqués aux chauffeurs tant qu'ils n'ont pas accepté la course.
+  pickupAddress String?
+  pickupLat     Float?
+  pickupLng     Float?
 
   acceptedAt   DateTime?
   startedAt    DateTime?
@@ -323,4 +333,13 @@ model Rating {
   booking Booking @relation(fields: [bookingId], references: [id])
   client  User    @relation(fields: [clientId], references: [id])
   driver  Driver  @relation(fields: [driverId], references: [id])
+}
+
+/// Réglages de la plateforme, éditables par l'admin. Une seule ligne (id = 1).
+model AppSettings {
+  id               Int      @id @default(1)
+  /// Quand vrai, ni le client ni le chauffeur ne voient le numéro de l'autre :
+  /// le contact passe uniquement par l'appel dans l'application.
+  maskPhoneNumbers Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
 }

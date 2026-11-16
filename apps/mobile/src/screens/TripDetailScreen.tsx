@@ -7,6 +7,8 @@ import type { TripsStackParamList } from "../navigation/types";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ContactActions } from "../components/ContactActions";
+import { DriverAvatar } from "../components/DriverAvatar";
+import { PickupCard } from "../components/PickupCard";
 import { InfoRow, Loading, Notice } from "../components/Feedback";
 import { RoleBadge } from "../components/RoleBadge";
 import { Screen } from "../components/Screen";
@@ -175,18 +177,7 @@ export default function TripDetailScreen({ route, navigation }: Props) {
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: space[3] }}
               >
-                <View
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: radius.pill,
-                    backgroundColor: colors.surfaceMuted,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name="person" size={22} color={colors.textMuted} />
-                </View>
+                <DriverAvatar photoUrl={booking.driver.photoUrl} size={64} />
                 <View style={{ flex: 1 }}>
                   <Text style={[text.subheading, { color: colors.text }]}>
                     {booking.driver.user.fullName}
@@ -203,6 +194,28 @@ export default function TripDetailScreen({ route, navigation }: Props) {
                   ) : null}
                 </View>
               </View>
+              {booking.vehicle ? (
+                <View
+                  style={{
+                    backgroundColor: colors.surfaceMuted,
+                    borderRadius: radius.md,
+                    padding: space[3],
+                    gap: 2,
+                  }}
+                >
+                  <Text style={[text.label, { color: colors.text }]}>
+                    {[booking.vehicle.brand, booking.vehicle.model, booking.vehicle.color]
+                      .filter(Boolean)
+                      .join(" · ") || t("trips.vehicle")}
+                  </Text>
+                  <Text style={[text.title, { color: colors.text, letterSpacing: 2 }]}>
+                    {booking.vehicle.plateNumber}
+                  </Text>
+                  <Text style={[text.caption, { color: colors.textFaint }]}>
+                    {t("trips.plateHint")}
+                  </Text>
+                </View>
+              ) : null}
               <ContactActions
                 bookingId={booking.id}
                 phone={booking.driver.user.phone}
@@ -225,17 +238,24 @@ export default function TripDetailScreen({ route, navigation }: Props) {
           <Text style={[text.subheading, { color: colors.text }]}>
             {booking.client?.fullName ?? t("trips.clientUnknown")}
           </Text>
-          {booking.client?.phone ? (
-            <ContactActions
-              bookingId={booking.id}
-              phone={booking.client.phone}
-              name={booking.client.fullName}
-              message={contactMessage}
-              crossBorder={crossBorder}
-            />
-          ) : null}
+          <ContactActions
+            bookingId={booking.id}
+            phone={booking.client?.phone}
+            name={booking.client?.fullName}
+            message={contactMessage}
+            crossBorder={crossBorder}
+          />
         </Card>
       )}
+
+      <PickupCard
+        pickup={{
+          address: booking.pickupAddress,
+          lat: booking.pickupLat,
+          lng: booking.pickupLng,
+        }}
+        navigable={!asClient && ["DRIVER_ASSIGNED", "IN_PROGRESS"].includes(booking.status)}
+      />
 
       {booking.rating ? (
         <Card>

@@ -53,6 +53,7 @@ const ALL_DOCUMENTS: DocumentType[] = [
   "VISITE_TECHNIQUE",
   "CASIER_JUDICIAIRE",
   "PHOTO_VEHICULE",
+  "PHOTO_PROFIL",
 ];
 
 /** Décalage en jours par rapport à maintenant, à heure fixée. */
@@ -757,6 +758,7 @@ async function main() {
       driverId: spec.driverKey ? driverIds[spec.driverKey] : null,
       vehicleId: spec.vehicleKey ? vehicleIds[spec.vehicleKey] : null,
       tranconId: spec.tranconId ?? null,
+      pickupAddress: "Devant l'hôtel du Lac, Cotonou",
       departureAt: spec.departureDays !== undefined ? at(spec.departureDays) : null,
       startAt,
       endAt,

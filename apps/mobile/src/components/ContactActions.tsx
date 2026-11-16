@@ -12,7 +12,11 @@ const WHATSAPP_GREEN = "#25D366";
 interface ContactActionsProps {
   /** Course concernée : c'est elle qui autorise l'appel dans l'application. */
   bookingId: string;
-  phone: string;
+  /**
+   * Absent quand l'admin a masqué les numéros : on ne propose alors que l'appel
+   * dans l'application, sans jamais afficher ni composer de numéro.
+   */
+  phone?: string | null;
   name?: string | null;
   /** Message pré-rempli dans la conversation WhatsApp. */
   message?: string;
@@ -42,12 +46,12 @@ export function ContactActions({
 
   const [busy, setBusy] = useState(false);
 
-  const canWhatsApp = whatsappNumber(phone) !== null;
+  const canWhatsApp = !!phone && whatsappNumber(phone) !== null;
 
   async function handleWhatsApp() {
     setBusy(true);
     try {
-      const opened = await openWhatsApp(phone, message);
+      const opened = await openWhatsApp(phone ?? "", message);
       if (!opened) Alert.alert(t("contact.whatsappUnavailable"));
     } catch {
       Alert.alert(t("contact.whatsappUnavailable"));
@@ -58,7 +62,7 @@ export function ContactActions({
 
   async function handleCall() {
     try {
-      await callPhone(phone);
+      if (phone) await callPhone(phone);
     } catch {
       Alert.alert(t("contact.callFailed"));
     }
@@ -78,6 +82,12 @@ export function ContactActions({
 
       {/* Le serveur sait appeler mais pas cette version de l'app : on le dit.
           Une option qui disparaît sans explication passe pour une panne. */}
+      {!canVoip && !phone ? (
+        <Text style={[text.caption, { color: colors.textFaint }]}>
+          {t("contact.maskedNoCall")}
+        </Text>
+      ) : null}
+
       {!canVoip && serverEnabled && !nativeSupported ? (
         <Row
           icon="wifi"
@@ -101,13 +111,15 @@ export function ContactActions({
 
       {/* Dernier recours, et il en a l'allure : pastille sobre plutôt que
           pleine couleur, qui manquerait de contraste en thème sombre. */}
-      <Row
-        icon="call"
-        quiet
-        title={t("contact.call")}
-        hint={crossBorder ? t("contact.callHintRoaming") : t("contact.callHint")}
-        onPress={handleCall}
-      />
+      {phone ? (
+        <Row
+          icon="call"
+          quiet
+          title={t("contact.call")}
+          hint={crossBorder ? t("contact.callHintRoaming") : t("contact.callHint")}
+          onPress={handleCall}
+        />
+      ) : null}
     </View>
   );
 

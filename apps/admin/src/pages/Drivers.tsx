@@ -19,6 +19,7 @@ const DOC_LABEL: Record<string, string> = {
   VISITE_TECHNIQUE: "Visite technique",
   CASIER_JUDICIAIRE: "Casier judiciaire",
   PHOTO_VEHICULE: "Photo du véhicule",
+  PHOTO_PROFIL: "Photo de profil (visage)",
 };
 
 export default function Drivers() {

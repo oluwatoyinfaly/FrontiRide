@@ -24,7 +24,8 @@ export type DocumentType =
   | "ASSURANCE"
   | "VISITE_TECHNIQUE"
   | "CASIER_JUDICIAIRE"
-  | "PHOTO_VEHICULE";
+  | "PHOTO_VEHICULE"
+  | "PHOTO_PROFIL";
 
 export type DriverStatus =
   | "PENDING_DOCUMENTS"
@@ -78,6 +79,7 @@ export interface Vehicle {
   type: VehicleType;
   brand: string | null;
   model: string | null;
+  color: string | null;
   plateNumber: string;
   seats: number;
   pricePerDay: number | null;
@@ -128,11 +130,21 @@ export interface Booking {
   trancon: Trancon | null;
   payment: Payment | null;
   rating: Rating | null;
-  vehicle: Pick<Vehicle, "id" | "type" | "brand" | "model" | "seats"> | null;
+  /** Lieu de rendez-vous saisi par le client. */
+  pickupAddress: string | null;
+  pickupLat: number | null;
+  pickupLng: number | null;
+  vehicle: Pick<
+    Vehicle,
+    "id" | "type" | "brand" | "model" | "color" | "plateNumber" | "seats"
+  > | null;
   driver: {
     id: string;
     ratingAverage: number;
-    user: { fullName: string | null; phone: string; photoUrl: string | null };
+    /** Route authentifiée de la photo, ou null si le chauffeur n'en a pas. */
+    photoUrl: string | null;
+    /** `phone` est absent quand l'admin a activé le masquage des numéros. */
+    user: { fullName: string | null; phone?: string };
   } | null;
 }
 
@@ -183,6 +195,8 @@ export interface DriverProfile {
  */
 export interface DriverRide
   extends Omit<Booking, "driver" | "vehicle" | "role"> {
+  /** Absent tant que la course n'est pas acceptée : le lieu reste confidentiel. */
+  vehicle?: Pick<Vehicle, "id" | "brand" | "model" | "color" | "plateNumber"> | null;
   client: { fullName: string | null; phone?: string };
 }
 

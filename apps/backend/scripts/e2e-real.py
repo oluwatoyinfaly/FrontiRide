@@ -132,9 +132,13 @@ check("un client ne peut pas téléverser", multipart(client, PNG)[0], 403)
 check("un fichier texte déguisé en image refusé", multipart(driver, b"pas une image", "x.png")[0], 415)
 check("sans jeton, refusé", multipart(None, PNG)[0], 401)
 
-types = ["CNI", "PERMIS", "CARTE_GRISE", "ASSURANCE", "VISITE_TECHNIQUE", "CASIER_JUDICIAIRE", "PHOTO_VEHICULE"]
+types = ["CNI", "PERMIS", "CARTE_GRISE", "ASSURANCE", "VISITE_TECHNIQUE", "CASIER_JUDICIAIRE", "PHOTO_VEHICULE", "PHOTO_PROFIL"]
 first_url = None
 for t in types:
+    if t == "PHOTO_PROFIL":
+        # Sept pièces sur huit : sans la photo de profil, le dossier ne part pas.
+        me = call("GET", "/driver/me", token=driver)[1]
+        check("sans photo de profil, le dossier reste incomplet", (me["status"], me["missingDocuments"]), ("PENDING_DOCUMENTS", ["PHOTO_PROFIL"]))
     st, up, _ = multipart(driver, PNG)
     assert st == 201, (st, up)
     st, doc, _ = call("POST", "/driver/documents", {"type": t, "fileUrl": up["url"]}, driver)
@@ -162,7 +166,7 @@ check("en ligne après validation", call("PATCH", "/driver/status", {"isOnline":
 
 print("== Véhicule ==")
 st, veh, _ = call("POST", "/driver/vehicles", {
-    "type": "CONFORT", "brand": "Toyota", "model": "Corolla", "plateNumber": "AB-1234-RB",
+    "type": "CONFORT", "brand": "Toyota", "model": "Corolla", "plateNumber": "AB-1234-RB", "color": "Blanche",
     "seats": 4, "pricePerDay": 60000}, driver)
 check("véhicule ajouté", st, 201)
 check("il apparaît au catalogue de location", [v["plateNumber"] for v in call("GET", "/vehicles?city=Cotonou")[1]], ["AB-1234-RB"])
@@ -179,7 +183,7 @@ def wait_status(payment_id, token, want, tries=30):
 
 
 def new_booking():
-    st, b, _ = call("POST", "/bookings/frontalier", {"tranconId": tid, "departureAt": depart, "seats": 1, "isRoundTrip": False}, client)
+    st, b, _ = call("POST", "/bookings/frontalier", {"tranconId": tid, "departureAt": depart, "seats": 1, "isRoundTrip": False, "pickupAddress": "Devant l'hôtel Sheraton, Cotonou", "pickupLat": 6.3654, "pickupLng": 2.4183}, client)
     assert st == 201, (st, b)
     return b["booking"]["id"], b["booking"]["reference"], b["price"]["totalFcfa"]
 
@@ -276,8 +280,49 @@ print("== La course, jusqu'à la note ==")
 avail = sorted(r["id"] for r in call("GET", "/driver/rides/available", token=driver)[1])
 check("toutes les courses payées sont proposées au chauffeur (cinq moyens, deux pays)",
       {bid, bid_moov, bid2, bid3, bid4, bid_tg, bid_tg2} <= set(avail), True)
-check("acceptation", call("POST", f"/driver/rides/{bid}/accept", token=driver)[1]["status"], "DRIVER_ASSIGNED")
-check("le client voit son chauffeur", call("GET", f"/bookings/{bid}", token=client)[1]["driver"]["user"]["fullName"], "Kofi Chauffeur")
+check("le lieu de rendez-vous est caché tant que la course est libre",
+      [("pickupAddress" in r) for r in call("GET", "/driver/rides/available", token=driver)[1]].count(True), 0)
+check("réservation sans lieu de rendez-vous refusée", call("POST", "/bookings/frontalier",
+      {"tranconId": tid, "departureAt": depart, "seats": 1}, client)[0], 400)
+check("coordonnées incomplètes refusées", call("POST", "/bookings/frontalier",
+      {"tranconId": tid, "departureAt": depart, "seats": 1, "pickupAddress": "Ici", "pickupLat": 6.3}, client)[0], 400)
+check("acceptation (un seul véhicule : choisi d'office)", call("POST", f"/driver/rides/{bid}/accept", token=driver)[1]["status"], "DRIVER_ASSIGNED")
+seen = call("GET", f"/bookings/{bid}", token=client)[1]
+check("le client voit son chauffeur", seen["driver"]["user"]["fullName"], "Kofi Chauffeur")
+check("... et la voiture : plaque, couleur, modèle",
+      (seen["vehicle"]["plateNumber"], seen["vehicle"]["color"], seen["vehicle"]["model"]), ("AB-1234-RB", "Blanche", "Corolla"))
+check("... et sa photo est servie par une route protégée", seen["driver"]["photoUrl"], f"/drivers/{seen['driver']['id']}/photo")
+rides = {r["id"]: r for r in call("GET", "/driver/rides", token=driver)[1]}
+check("le chauffeur voit le lieu et la position après acceptation",
+      (rides[bid]["pickupAddress"], rides[bid]["pickupLat"]), ("Devant l'hôtel Sheraton, Cotonou", 6.3654))
+
+print("== Photo du chauffeur : qui peut la voir ==")
+photo = seen["driver"]["photoUrl"]
+intrus, _u = sign_in("intrus@e2e.test", {"email": "intrus@e2e.test", "phone": "+22990444444", "fullName": "Intrus", "locale": "fr"})
+check("le client de la course la voit", call("GET", photo, token=client)[0], 200)
+check("le chauffeur lui-même la voit", call("GET", photo, token=driver)[0], 200)
+check("l'admin la voit", call("GET", photo, token=admin)[0], 200)
+check("un autre client ne la voit pas", call("GET", photo, token=intrus)[0], 404)
+check("sans jeton, refusé", call("GET", photo)[0], 401)
+
+print("== Numéros masqués (réglage admin) ==")
+check("le client voit le numéro du chauffeur par défaut", bool(seen["driver"]["user"].get("phone")), True)
+check("le chauffeur voit le numéro du client par défaut", bool(rides[bid]["client"].get("phone")), True)
+check("un non-admin ne peut pas changer le réglage",
+      call("PATCH", "/admin/settings", {"maskPhoneNumbers": True}, client)[0], 403)
+check("l'admin active le masquage", call("PATCH", "/admin/settings", {"maskPhoneNumbers": True}, admin)[1]["maskPhoneNumbers"], True)
+check("l'application est prévenue", call("GET", "/calls/config", token=client)[1]["phoneMasked"], True)
+masked_seen = call("GET", f"/bookings/{bid}", token=client)[1]
+check("le client ne voit plus le numéro du chauffeur", "phone" in masked_seen["driver"]["user"], False)
+check("... mais voit toujours son nom et sa plaque",
+      (masked_seen["driver"]["user"]["fullName"], masked_seen["vehicle"]["plateNumber"]), ("Kofi Chauffeur", "AB-1234-RB"))
+check("le chauffeur ne voit plus le numéro du client",
+      "phone" in {r["id"]: r for r in call("GET", "/driver/rides", token=driver)[1]}[bid]["client"], False)
+check("la liste des courses du client est masquée aussi",
+      any("phone" in (b["driver"] or {}).get("user", {}) for b in call("GET", "/bookings", token=client)[1]), False)
+check("l'appel dans l'application reste possible", call("POST", "/calls", {"bookingId": bid}, client)[0] in (201, 404), True)
+check("l'admin désactive le masquage", call("PATCH", "/admin/settings", {"maskPhoneNumbers": False}, admin)[1]["maskPhoneNumbers"], False)
+check("les numéros réapparaissent", bool(call("GET", f"/bookings/{bid}", token=client)[1]["driver"]["user"].get("phone")), True)
 check("départ", call("POST", f"/driver/rides/{bid}/start", token=driver)[0], 200)
 done = call("POST", f"/driver/rides/{bid}/complete", token=driver)[1]
 check("terminée, gains calculés", done["earningsFcfa"] > 0, True)
@@ -309,11 +354,11 @@ else:
 print("== Location en ville ==")
 vid = call("GET", "/vehicles?city=Cotonou")[1][0]["id"]
 start = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 10 * 86400))
-st, lv, _ = call("POST", "/bookings/location-ville", {"vehicleId": vid, "startAt": start, "durationDays": 2}, client)
+st, lv, _ = call("POST", "/bookings/location-ville", {"vehicleId": vid, "startAt": start, "durationDays": 2, "pickupAddress": "Aéroport de Cotonou"}, client)
 check("réservation de location", (st, lv["booking"]["status"]), (201, "AWAITING_PAYMENT"))
 check("acompte de 30 %", lv["advanceFcfa"], round(lv["price"]["totalFcfa"] * 0.3))
 start2 = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 40 * 86400))
-st, big, _ = call("POST", "/bookings/location-ville", {"vehicleId": vid, "startAt": start2, "durationDays": 20}, client)
+st, big, _ = call("POST", "/bookings/location-ville", {"vehicleId": vid, "startAt": start2, "durationDays": 20, "pickupAddress": "Aéroport de Cotonou"}, client)
 st, over, _ = call("POST", "/payments/initiate", {"bookingId": big["booking"]["id"], "method": "MOMO_MTN", "phone": "+22997000000", "payFull": True}, client)
 check("au-delà de 1 000 000 FCFA, le Mobile Money est refusé avec explication", (st, "1 000 000" in over.get("error", "").replace("\u202f", " ").replace("\u00a0", " ")), (400, True))
 

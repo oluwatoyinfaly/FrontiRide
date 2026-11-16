@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { agoraCredentials, callCredentials } from "../lib/agora.js";
+import { phonesMasked } from "../lib/settings.js";
 
 /**
  * Une sonnerie qui n'a pas été décrochée en 45 secondes est un appel manqué.
@@ -47,7 +48,12 @@ export default async function callRoutes(fastify: FastifyInstance) {
 
   /** L'application masque l'option d'appel tant que le service n'est pas configuré. */
   fastify.get("/calls/config", auth, async (_request, reply) => {
-    return reply.send({ enabled: agoraCredentials() !== null });
+    return reply.send({
+      enabled: agoraCredentials() !== null,
+      // Quand les numéros sont masqués, l'application ne propose que l'appel
+      // dans l'application : ni téléphone, ni WhatsApp.
+      phoneMasked: await phonesMasked(fastify.prisma),
+    });
   });
 
   fastify.post("/calls", auth, async (request, reply) => {
@@ -120,7 +126,10 @@ export default async function callRoutes(fastify: FastifyInstance) {
       id: call.id,
       channel: call.channel,
       booking: call.booking,
-      caller: { fullName: caller?.fullName ?? null, phone: caller?.phone ?? null },
+      caller: {
+        fullName: caller?.fullName ?? null,
+        phone: (await phonesMasked(fastify.prisma)) ? null : (caller?.phone ?? null),
+      },
       createdAt: call.createdAt,
     });
   });

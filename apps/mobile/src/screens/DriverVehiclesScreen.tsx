@@ -35,6 +35,7 @@ export default function DriverVehiclesScreen() {
   const [type, setType] = useState<VehicleType>("ECONOMIQUE");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
+  const [color, setColor] = useState("");
   const [plate, setPlate] = useState("");
   const [seats, setSeats] = useState(DEFAULT_SEATS.ECONOMIQUE);
   const [price, setPrice] = useState("");
@@ -82,11 +83,13 @@ export default function DriverVehiclesScreen() {
         seats: seatCount,
         brand: brand.trim() || undefined,
         model: model.trim() || undefined,
+        color: color.trim() || undefined,
         pricePerDay: needsPrice ? priceValue : undefined,
       });
       setAdding(false);
       setBrand("");
       setModel("");
+      setColor("");
       setPlate("");
       setPrice("");
       load();
@@ -141,7 +144,7 @@ export default function DriverVehiclesScreen() {
               t(`vehicleType.${vehicle.type}`)}
           </Text>
           <Text style={[text.caption, { color: colors.textMuted }]}>
-            {t(`vehicleType.${vehicle.type}`)} · {vehicle.plateNumber} ·{" "}
+            {t(`vehicleType.${vehicle.type}`)} · {vehicle.plateNumber}{vehicle.color ? ` · ${vehicle.color}` : ""} ·{" "}
             {vehicle.seats} {t("common.seats")}
           </Text>
           {vehicle.pricePerDay ? (
@@ -182,6 +185,7 @@ export default function DriverVehiclesScreen() {
           />
           <TextField label={t("driver.brand")} value={brand} onChangeText={setBrand} />
           <TextField label={t("driver.model")} value={model} onChangeText={setModel} />
+          <TextField label={t("driver.color")} value={color} onChangeText={setColor} />
           <TextField
             label={t("driver.seatsCount")}
             value={seats}

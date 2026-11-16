@@ -65,7 +65,7 @@ Le seed remplit la base de quoi juger l'application dès le premier démarrage :
 | `admin@frontiride.com` | Administrateur | 2 dossiers à contrôler, 5 paiements sous séquestre, 2 retraits à verser |
 | `client@example.com` | Client | 13 courses couvrant tous les états, dont 5 terminées et 4 notées |
 | `kofi.adjovi@example.com` | Chauffeur validé | Portefeuille garni, et surtout les deux rôles : 4 courses conduites, 2 réservées comme client |
-| `rachid.ouedraogo@example.com` | Chauffeur incomplet | Dossier à 3 pièces sur 7 |
+| `rachid.ouedraogo@example.com` | Chauffeur incomplet | Dossier à 3 pièces sur 8 |
 
 **Connecte-toi avec `client@example.com` sur le mobile** : un compte tout neuf afficherait un historique vide, alors que celui-ci montre l'application vivante.
 

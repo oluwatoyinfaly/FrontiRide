@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { advanceFor, frontalierPrice, locationPrice } from "../lib/pricing.js";
 import { createBookingWithReference } from "../lib/reference.js";
+import { presentBooking } from "../lib/present.js";
+import { phonesMasked } from "../lib/settings.js";
 
 const VEHICLE_TYPES = [
   "ECONOMIQUE",
@@ -11,18 +13,35 @@ const VEHICLE_TYPES = [
   "MINIBUS",
 ] as const;
 
+/**
+ * Où le chauffeur vient chercher le client. Le texte (« devant l'hôtel X »)
+ * est obligatoire : c'est le repère que tout le monde comprend. Les
+ * coordonnées, facultatives, viennent du bouton « utiliser ma position » et
+ * vont ensemble.
+ */
+const pickupFields = {
+  pickupAddress: z.string().trim().min(3, "Indiquez un lieu de prise en charge").max(200),
+  pickupLat: z.number().min(-90).max(90).optional(),
+  pickupLng: z.number().min(-180).max(180).optional(),
+};
+
+const pickupCoordinatesTogether = (b: { pickupLat?: number; pickupLng?: number }) =>
+  (b.pickupLat === undefined) === (b.pickupLng === undefined);
+
 const frontalierSchema = z.object({
+  ...pickupFields,
   tranconId: z.string(),
   departureAt: z.coerce.date(),
   isRoundTrip: z.boolean().default(false),
   seats: z.number().int().min(1).max(4).default(1),
-});
+}).refine(pickupCoordinatesTogether, { message: "Coordonnées incomplètes" });
 
 const locationSchema = z.object({
+  ...pickupFields,
   vehicleId: z.string(),
   startAt: z.coerce.date(),
   durationDays: z.number().int().min(1).max(30),
-});
+}).refine(pickupCoordinatesTogether, { message: "Coordonnées incomplètes" });
 
 const ratingSchema = z.object({
   score: z.number().int().min(1).max(5),
@@ -37,12 +56,26 @@ const bookingInclude = {
   client: { select: { fullName: true, phone: true } },
   payment: true,
   rating: true,
-  vehicle: { select: { id: true, type: true, brand: true, model: true, seats: true } },
+  // Plaque et couleur : de quoi reconnaître le véhicule au point de rendez-vous.
+  vehicle: {
+    select: {
+      id: true,
+      type: true,
+      brand: true,
+      model: true,
+      color: true,
+      plateNumber: true,
+      seats: true,
+    },
+  },
   driver: {
     select: {
       id: true,
       ratingAverage: true,
-      user: { select: { fullName: true, phone: true, photoUrl: true } },
+      user: { select: { fullName: true, phone: true } },
+      // Sert seulement à savoir si la photo existe ; elle est servie par
+      // GET /drivers/:id/photo.
+      documents: { where: { type: "PHOTO_PROFIL" }, select: { id: true } },
     },
   },
 } as const;
@@ -126,6 +159,9 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
             departureAt: body.departureAt,
             isRoundTrip: body.isRoundTrip,
             seats: body.seats,
+            pickupAddress: body.pickupAddress,
+            pickupLat: body.pickupLat,
+            pickupLng: body.pickupLng,
             estimatedPriceFcfa: price.totalFcfa,
           },
           include: bookingInclude,
@@ -133,7 +169,9 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
       "FRONTALIER"
     );
 
-    return reply.code(201).send({ booking, price });
+    return reply
+      .code(201)
+      .send({ booking: presentBooking(booking, await phonesMasked(fastify.prisma)), price });
   });
 
   fastify.post("/bookings/location-ville", auth, async (request, reply) => {
@@ -188,6 +226,9 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
             startAt: body.startAt,
             endAt,
             durationDays: body.durationDays,
+            pickupAddress: body.pickupAddress,
+            pickupLat: body.pickupLat,
+            pickupLng: body.pickupLng,
             estimatedPriceFcfa: price.totalFcfa,
           },
           include: bookingInclude,
@@ -197,7 +238,11 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
 
     return reply
       .code(201)
-      .send({ booking, price, advanceFcfa: advanceFor(price.totalFcfa) });
+      .send({
+        booking: presentBooking(booking, await phonesMasked(fastify.prisma)),
+        price,
+        advanceFcfa: advanceFor(price.totalFcfa),
+      });
   });
 
   /**
@@ -233,8 +278,12 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
       orderBy: { createdAt: "desc" },
     });
 
+    const masked = await phonesMasked(fastify.prisma);
     return reply.send(
-      bookings.map((booking) => ({ ...booking, role: roleIn(booking, userId) }))
+      bookings.map((booking) => ({
+        ...presentBooking(booking, masked),
+        role: roleIn(booking, userId),
+      }))
     );
   });
 
@@ -260,7 +309,10 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: "Réservation introuvable" });
     }
 
-    return reply.send({ ...booking, role: roleIn(booking, userId) });
+    return reply.send({
+      ...presentBooking(booking, await phonesMasked(fastify.prisma)),
+      role: roleIn(booking, userId),
+    });
   });
 
   fastify.post("/bookings/:id/cancel", auth, async (request, reply) => {
@@ -298,7 +350,7 @@ export default async function bookingRoutes(fastify: FastifyInstance) {
       );
     }
 
-    return reply.send(updated);
+    return reply.send(presentBooking(updated, await phonesMasked(fastify.prisma)));
   });
 
   fastify.post("/bookings/:id/rating", auth, async (request, reply) => {

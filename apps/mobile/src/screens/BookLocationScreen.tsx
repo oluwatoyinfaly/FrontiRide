@@ -9,6 +9,7 @@ import { ChoiceGroup, type Choice } from "../components/ChoiceGroup";
 import { DateTimeField } from "../components/DateTimeField";
 import { EmptyState, InfoRow, Loading, Notice } from "../components/Feedback";
 import { Screen } from "../components/Screen";
+import { PickupField, type PickupValue } from "../components/PickupField";
 import { Stepper } from "../components/Stepper";
 import { useI18n } from "../i18n";
 import { useTheme } from "../theme";
@@ -49,6 +50,7 @@ export default function BookLocationScreen({ navigation }: Props) {
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [startAt, setStartAt] = useState(tomorrow);
   const [durationDays, setDurationDays] = useState(1);
+  const [pickup, setPickup] = useState<PickupValue>({ address: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,12 +82,19 @@ export default function BookLocationScreen({ navigation }: Props) {
   async function handleBook() {
     if (!selected) return;
     setError(null);
+    if (pickup.address.trim().length < 3) {
+      setError(t("pickup.required"));
+      return;
+    }
     setSubmitting(true);
     try {
       const { booking } = await api.bookLocation({
         vehicleId: selected.id,
         startAt: startAt.toISOString(),
         durationDays,
+        pickupAddress: pickup.address.trim(),
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
       });
       navigation.replace("Payment", { bookingId: booking.id });
     } catch (err) {
@@ -207,6 +216,8 @@ export default function BookLocationScreen({ navigation }: Props) {
         max={30}
         onChange={setDurationDays}
       />
+
+      <PickupField value={pickup} onChange={setPickup} />
 
       {selected ? (
         <Card>

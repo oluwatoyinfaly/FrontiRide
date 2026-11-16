@@ -44,6 +44,8 @@ interface CallValue {
   available: boolean;
   /** Le serveur a ses clés Agora. */
   serverEnabled: boolean;
+  /** L'admin a masqué les numéros : seul l'appel dans l'application reste. */
+  phoneMasked: boolean;
   /**
    * Le module natif est présent. Faux sous Expo Go : l'écart entre ces deux
    * drapeaux est ce qui permet d'expliquer l'indisponibilité au lieu de
@@ -65,6 +67,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useSession();
 
   const [serverEnabled, setServerEnabled] = useState(false);
+  const [phoneMasked, setPhoneMasked] = useState(false);
   const [state, setState] = useState<CallState>(IDLE);
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
 
@@ -74,16 +77,22 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   // Le serveur dit si Agora est configuré : sans clés, l'option reste cachée.
   useEffect(() => {
-    if (!user || !supported) return;
+    if (!user) return;
     let cancelled = false;
+    // Lu même quand le module natif manque (Expo Go) : le masquage des
+    // numéros doit s'appliquer à l'écran dans tous les cas.
     api
       .callsEnabled()
-      .then((r) => !cancelled && setServerEnabled(r.enabled))
+      .then((r) => {
+        if (cancelled) return;
+        setServerEnabled(r.enabled);
+        setPhoneMasked(r.phoneMasked);
+      })
       .catch(() => !cancelled && setServerEnabled(false));
     return () => {
       cancelled = true;
     };
-  }, [user, supported]);
+  }, [user]);
 
   const teardown = useCallback((outcome: CallState["outcome"]) => {
     session.current?.leave();
@@ -210,6 +219,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const value: CallValue = {
     available,
     serverEnabled,
+    phoneMasked,
     nativeSupported: supported,
     state,
     call,
