@@ -65,11 +65,14 @@ Définis dans [`apps/mobile/eas.json`](../apps/mobile/eas.json).
 Chaque profil déclare `"image": "latest"` : **c'est obligatoire pour les
 builds déclenchés depuis GitHub**, qui refusent un profil sans image.
 
-L'URL du backend est injectée par profil via `EXPO_PUBLIC_API_URL`. Les
-valeurs de `preview` et `production` sont des **espaces réservés**
-(`api-staging.frontiride.com`, `api.frontiride.com`) : à remplacer par les
-vraies URL une fois le backend déployé, sinon les builds pointeront dans le
-vide.
+L'URL du backend est injectée par profil via `EXPO_PUBLIC_API_URL`, à la
+compilation : changer d'API demande un nouveau build.
+
+- `preview` et `staging` visent le déploiement de test
+  (`https://frontiride-api.yindolabs.com`) ;
+- `development` n'en définit pas : l'app vise la machine qui sert Metro ;
+- `production` garde un **espace réservé** (`api.frontiride.com`), à remplacer
+  par la vraie URL avant tout build de production, sinon il pointera dans le vide.
 
 ## Premier build
 
