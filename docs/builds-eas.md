@@ -35,22 +35,18 @@ aurait tout écrasé. À la place, seule la partie utile a été appliquée — 
 `projectId` a été inscrit directement dans `app.json`, ce que `eas init --id`
 aurait fait.
 
-Deux champs restent à réconcilier depuis ta machine, car ils dépendent de ton
-compte Expo et je ne peux pas les deviner :
+Deux champs d'`app.json` doivent correspondre au projet EAS distant, sinon `eas
+build` s'arrête (« Slug for project … does not match the "slug" field ») :
 
-- **`owner`** — ton compte ou ton organisation Expo. Absent aujourd'hui.
-- **`slug`** — vaut `frontiride` ici ; le projet distant a peut-être été créé
-  sous `frontride` (la commande d'origine comporte cette graphie).
+- **`owner`** : `yindo`, le compte qui détient le projet.
+- **`slug`** : **`frontride`**, sans le « i ». Le projet a été créé sous ce nom (la
+  commande d'origine comportait cette graphie) et le slug d'un projet Expo ne se
+  renomme pas ensuite. Le nom affiché de l'application, lui, reste « FrontiRide » :
+  c'est le champ `name`, indépendant.
 
-Une seule commande les aligne :
-
-```bash
-cd apps/mobile
-npx eas-cli@latest init --id 36e54071-32b1-41ed-881e-08ba1ebe308b
-```
-
-Elle écrit `owner` et corrige `slug` d'après le projet distant. À lancer une
-fois, avant le premier build.
+Si tu repars sur un autre projet EAS, `npx eas-cli@latest init` réécrit ces champs
+d'après le projet distant, mais aussi un nouveau `projectId` — et `updates.url`,
+qui porte le même identifiant, est alors à corriger à la main.
 
 ## Profils de build
 
