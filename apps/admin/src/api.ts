@@ -1,8 +1,21 @@
-// Sans slash final : une adresse saisie « https://api.exemple.tld/ » donnerait
-// « …//auth/login », que le serveur ne reconnaît pas.
-export const API_URL = (
+/**
+ * Adresse de l'API, rendue utilisable quoi qu'on ait saisi dans la variable.
+ *
+ * - Sans « https:// », le navigateur la prend pour un chemin RELATIF : l'admin
+ *   appelait alors « https://admin…/frontiride-api….com/auth/login » sur son
+ *   propre domaine. On ajoute le schéma (http pour une adresse locale).
+ * - Un slash final donnerait « …//auth/login », que le serveur ne reconnaît pas.
+ */
+export function normalizeApiUrl(raw: string): string {
+  const url = raw.trim().replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(url)) return url;
+  const local = /^(localhost|127\.|\d{1,3}(\.\d{1,3}){3})/.test(url);
+  return `${local ? "http" : "https"}://${url}`;
+}
+
+export const API_URL = normalizeApiUrl(
   import.meta.env.VITE_API_URL ?? "http://localhost:47001"
-).replace(/\/+$/, "");
+);
 
 const TOKEN_KEY = "frontiride.admin.token";
 

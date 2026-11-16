@@ -14,6 +14,17 @@ import type {
   VehicleType,
 } from "./types";
 
+/**
+ * Rend l'adresse utilisable quoi qu'on ait saisi : sans « https:// » une requête
+ * échoue sans explication, et un slash final donne « …//auth/login ».
+ */
+function normalizeApiUrl(raw: string): string {
+  const url = raw.trim().replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(url)) return url;
+  const local = /^(localhost|127\.|\d{1,3}(\.\d{1,3}){3})/.test(url);
+  return `${local ? "http" : "https"}://${url}`;
+}
+
 /** Port de l'API, hors des ports de développement usuels (voir README). */
 const API_PORT = 47001;
 
@@ -24,7 +35,7 @@ const API_PORT = 47001;
  */
 function defaultApiUrl(): string {
   const configured = process.env.EXPO_PUBLIC_API_URL;
-  if (configured) return configured.replace(/\/+$/, "");
+  if (configured) return normalizeApiUrl(configured);
 
   const host = Constants.expoConfig?.hostUri?.split(":")[0];
   return host ? `http://${host}:${API_PORT}` : `http://localhost:${API_PORT}`;

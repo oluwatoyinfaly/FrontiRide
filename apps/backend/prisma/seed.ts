@@ -588,25 +588,51 @@ const WITHDRAWALS = [
   { id: "seed-wd-3", driverKey: "kofi", amountFcfa: 25000, status: "PAID" as const, days: -9 },
 ];
 
+/**
+ * Compte administrateur du seed.
+ *
+ * Changer SEED_ADMIN_EMAIL après un premier démarrage doit DÉPLACER ce compte,
+ * pas en créer un second : il est identifié par son id, non par son adresse.
+ * Identifié par l'adresse, un changement tentait de recréer le même id, le seed
+ * échouait, et l'API — qui ne démarre qu'après le seed — restait à l'arrêt.
+ */
+async function ensureAdmin(email: string) {
+  // L'adresse a déjà un compte (une inscription, par exemple) : on le promeut
+  // plutôt que de se heurter à l'unicité de l'adresse.
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    const previous = await prisma.user.findUnique({ where: { id: "seed-admin" } });
+    if (previous && previous.id !== existing.id) {
+      console.warn(
+        `Attention : ${previous.email} reste administrateur. Rétrograde-le depuis la base si ce compte ne doit plus l'être.`
+      );
+    }
+    return prisma.user.update({
+      where: { id: existing.id },
+      data: { role: "ADMIN", emailVerified: true },
+    });
+  }
+
+  return prisma.user.upsert({
+    where: { id: "seed-admin" },
+    update: { email, role: "ADMIN", emailVerified: true },
+    create: {
+      id: "seed-admin",
+      email,
+      phone: "+22900000000",
+      fullName: "Administration FrontiRide",
+      role: "ADMIN",
+      emailVerified: true,
+      phoneVerified: true,
+    },
+  });
+}
+
 async function main() {
   // --- Administrateur -------------------------------------------------------
   // Hors démonstration, l'adresse doit être fournie : une adresse par défaut
   // créerait un compte administrateur que personne ne contrôle.
-  const admin = ADMIN_EMAIL
-    ? await prisma.user.upsert({
-        where: { email: ADMIN_EMAIL },
-        update: { role: "ADMIN" },
-        create: {
-          id: "seed-admin",
-          email: ADMIN_EMAIL,
-          phone: "+22900000000",
-          fullName: "Administration FrontiRide",
-          role: "ADMIN",
-          emailVerified: true,
-          phoneVerified: true,
-        },
-      })
-    : null;
+  const admin = ADMIN_EMAIL ? await ensureAdmin(ADMIN_EMAIL) : null;
 
   // --- Trançons -------------------------------------------------------------
   // En production réelle l'admin les ajuste depuis le back-office : un

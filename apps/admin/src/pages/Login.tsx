@@ -39,7 +39,7 @@ export default function Login({ onSignedIn }: { onSignedIn: (user: AdminUser) =>
             : err instanceof ApiError && err.status === 429
               ? "Un code vient d'être envoyé. Patientez quelques secondes."
               : err instanceof ApiError && err.status === 503
-                ? "Le code n'a pas pu être envoyé."
+                ? "Service indisponible. Si cela persiste, le serveur n'arrive pas à envoyer le code par email : vérifie sa configuration SMTP."
                 : "Connexion impossible."
       );
     } finally {

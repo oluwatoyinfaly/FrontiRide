@@ -22,8 +22,8 @@ rien à valider : le test consiste à fabriquer lui-même ses données.
 
 | Variable | Obligatoire | Rôle |
 |---|---|---|
-| `PUBLIC_API_URL` | oui | Adresse publique de l'API, `https://api-test.mondomaine.tld`, **sans slash final**. Elle est figée dans le back-office à sa compilation : la changer demande de redéployer l'admin |
-| `SEED_ADMIN_EMAIL` | oui | Ton adresse : c'est là que parvient le code de l'admin |
+| `PUBLIC_API_URL` | oui | Adresse publique de l'API, **avec `https://`** et sans slash final : `https://api-test.mondomaine.tld`. Elle est figée dans le back-office à sa compilation : la changer demande de redéployer l'admin |
+| `SEED_ADMIN_EMAIL` | oui | Ton adresse : c'est là que parvient le code de l'admin. Tu peux la changer plus tard : le compte administrateur est **déplacé** vers la nouvelle adresse (l'ancienne perd l'accès) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | oui | Ton serveur Brevo |
 | `FEEXPAY_TOKEN`, `FEEXPAY_SHOP_ID` | non | Mobile Money. Sans eux : espèces seulement |
 | `FEEXPAY_ENV` | non | `sandbox` ou `live`. Vide : déduit de la clé (`test_…` = sandbox) |
