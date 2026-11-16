@@ -1,4 +1,8 @@
-export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:47001";
+// Sans slash final : une adresse saisie « https://api.exemple.tld/ » donnerait
+// « …//auth/login », que le serveur ne reconnaît pas.
+export const API_URL = (
+  import.meta.env.VITE_API_URL ?? "http://localhost:47001"
+).replace(/\/+$/, "");
 
 const TOKEN_KEY = "frontiride.admin.token";
 

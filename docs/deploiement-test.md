@@ -22,7 +22,7 @@ rien à valider : le test consiste à fabriquer lui-même ses données.
 
 | Variable | Obligatoire | Rôle |
 |---|---|---|
-| `PUBLIC_API_URL` | oui | Adresse publique de l'API, `https://api-test.mondomaine.tld` |
+| `PUBLIC_API_URL` | oui | Adresse publique de l'API, `https://api-test.mondomaine.tld`, **sans slash final**. Elle est figée dans le back-office à sa compilation : la changer demande de redéployer l'admin |
 | `SEED_ADMIN_EMAIL` | oui | Ton adresse : c'est là que parvient le code de l'admin |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | oui | Ton serveur Brevo |
 | `FEEXPAY_TOKEN`, `FEEXPAY_SHOP_ID` | non | Mobile Money. Sans eux : espèces seulement |
@@ -41,9 +41,10 @@ Si tu ne peux pas le renseigner, ne déploie pas.
    et `admin-test.mondomaine.tld`.
 2. **Coolify** → *New Resource* → *Docker Compose* → ce dépôt. *Docker Compose
    Location* : `/docker-compose.coolify.yml`.
-3. **Domaines** : service `backend` → `https://api-test.mondomaine.tld:47001` ;
-   service `admin` → `https://admin-test.mondomaine.tld:47005`. Le port dit à
-   Coolify où router.
+3. **Domaines** : service `backend` → `https://api-test.mondomaine.tld:47001` (le
+   port dit à Coolify où router) ; service `admin` → `https://admin-test.mondomaine.tld`.
+   Le back-office écoute sur **les ports 80 et 47005** : le champ *Domains* peut
+   préciser l'un, l'autre, ou aucun.
 4. Renseigner les variables ci-dessus, puis **Deploy**.
 5. Vérifier : `https://api-test.mondomaine.tld/health` → `{"status":"ok"}`.
 
@@ -191,10 +192,23 @@ retrait.
   (pas de push) — voir [`appels.md`](appels.md).
 - Un seul serveur : les pièces sont sur le disque de l'API, et le plafond d'essais
   de code est en mémoire.
-- Le back-office tourne en serveur de développement : suffisant pour un test, pas
-  pour un déploiement durable.
 - Un remboursement depuis le back-office change l'état du paiement mais ne
   rembourse rien chez FeexPay : à faire à la main.
+
+## Si le back-office répond 502
+
+Cloudflare affiche « Bad Gateway » quand le proxy de Coolify ne joint pas le
+conteneur. Pour le back-office :
+
+1. **Redéploie**, ne redémarre pas : les règles de routage ne sont régénérées
+   qu'au déploiement.
+2. Ouvre les journaux du service `admin` : un conteneur sain n'écrit presque rien ;
+   un conteneur qui boucle montre pourquoi.
+3. Vérifie que `PUBLIC_API_URL` est renseignée **avant** le déploiement : sans elle
+   la compilation s'arrête.
+
+Le back-office est un vrai build servi par nginx (`apps/admin/Dockerfile.prod`),
+pas le serveur de développement.
 
 ## À la fin du test
 

@@ -24,7 +24,7 @@ const API_PORT = 47001;
  */
 function defaultApiUrl(): string {
   const configured = process.env.EXPO_PUBLIC_API_URL;
-  if (configured) return configured;
+  if (configured) return configured.replace(/\/+$/, "");
 
   const host = Constants.expoConfig?.hostUri?.split(":")[0];
   return host ? `http://${host}:${API_PORT}` : `http://localhost:${API_PORT}`;
