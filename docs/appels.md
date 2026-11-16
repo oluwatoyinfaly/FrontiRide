@@ -71,3 +71,26 @@ sur Android), il remplacera cette interrogation sans toucher au reste.
   (confirmée, chauffeur affecté, en cours, terminée).
 - **Sonnerie** : une ligne `Call` en base, expirée au bout de 45 secondes, qui
   bascule alors en appel manqué.
+
+## Masquer les numéros de téléphone
+
+Back-office → **Réglages** → « Masquer les numéros de téléphone ».
+
+Activé, ni le client ni le chauffeur ne voient le numéro de l'autre : les boutons
+« Appeler » et WhatsApp disparaissent, seul l'appel dans l'application reste. Le
+masquage est fait par l'API (le numéro ne quitte jamais le serveur), donc une
+application modifiée ne peut pas le contourner.
+
+L'option est refusée tant que `AGORA_APP_ID` / `AGORA_APP_CERTIFICATE` ne sont pas
+configurés, et l'appel dans l'application n'existe que dans un build installé (pas
+Expo Go) : testez-le entre deux téléphones avant de l'activer en production.
+L'admin continue de voir les numéros.
+
+## Identification et point de rendez-vous
+
+- Le chauffeur doit fournir sa **photo de profil** (8ᵉ pièce, prise à la caméra) ;
+  elle n'est servie qu'à lui, à l'admin et aux clients dont une course lui est affectée.
+- À l'acceptation, le chauffeur désigne le véhicule utilisé (d'office s'il n'en a qu'un) ;
+  le client voit sa photo, son nom, sa note, la marque, le modèle, la couleur et la plaque.
+- Le client indique un lieu de rendez-vous (texte obligatoire, position GPS facultative).
+  Il n'est dévoilé qu'au chauffeur qui accepte, qui l'ouvre dans Google Maps ou Waze.

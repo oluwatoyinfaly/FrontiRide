@@ -76,7 +76,7 @@ boîte Gmail avec des alias en `+` arrive entièrement chez toi
 (`toi+client@gmail.com`, `toi+chauffeur@gmail.com`…).
 
 1. **Chauffeur** (téléphone A) : *Créer un compte* → code reçu par mail → onglet
-   Profil → *Devenir chauffeur* → envoyer les 7 pièces (photos).
+   Profil → *Devenir chauffeur* → envoyer les 8 pièces (dont la photo de profil, prise à la caméra).
 2. **Admin** (navigateur) : `https://admin-test.mondomaine.tld`, code reçu à
    `SEED_ADMIN_EMAIL` → *Chauffeurs* → ouvrir le dossier, *Voir* chaque pièce,
    *Valider*.
@@ -177,7 +177,7 @@ python3 scripts/e2e-real.py
 ```
 
 Il joue le parcours ci-dessus sur une base vierge, en 76 vérifications :
-inscription par code reçu en mail, 7 pièces, validation, véhicule, paiement Mobile
+inscription par code reçu en mail, 8 pièces, validation, véhicule, paiement Mobile
 Money sur les cinq réseaux (réussi, refusé, solde insuffisant, panne, en attente,
 confirmé sans l'application), course, note, appel, déblocage du séquestre et
 retrait.

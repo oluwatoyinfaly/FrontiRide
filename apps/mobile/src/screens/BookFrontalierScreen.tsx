@@ -8,6 +8,7 @@ import { ChoiceGroup, type Choice } from "../components/ChoiceGroup";
 import { DateTimeField } from "../components/DateTimeField";
 import { EmptyState, InfoRow, Loading, Notice } from "../components/Feedback";
 import { Screen } from "../components/Screen";
+import { PickupField, type PickupValue } from "../components/PickupField";
 import { Stepper } from "../components/Stepper";
 import { useI18n } from "../i18n";
 import { useTheme } from "../theme";
@@ -33,6 +34,7 @@ export default function BookFrontalierScreen({ navigation }: Props) {
   const [departureAt, setDepartureAt] = useState(tomorrow);
   const [isRoundTrip, setIsRoundTrip] = useState(false);
   const [seats, setSeats] = useState(1);
+  const [pickup, setPickup] = useState<PickupValue>({ address: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +76,10 @@ export default function BookFrontalierScreen({ navigation }: Props) {
 
   async function handleBook() {
     setError(null);
+    if (pickup.address.trim().length < 3) {
+      setError(t("pickup.required"));
+      return;
+    }
     setSubmitting(true);
     try {
       const { booking } = await api.bookFrontalier({
@@ -81,6 +87,9 @@ export default function BookFrontalierScreen({ navigation }: Props) {
         departureAt: departureAt.toISOString(),
         isRoundTrip,
         seats,
+        pickupAddress: pickup.address.trim(),
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
       });
       navigation.replace("Payment", { bookingId: booking.id });
     } catch (err) {
@@ -147,6 +156,8 @@ export default function BookFrontalierScreen({ navigation }: Props) {
       <Text style={[text.caption, { color: colors.textFaint }]}>
         {t("booking.seatsHint")}
       </Text>
+
+      <PickupField value={pickup} onChange={setPickup} />
 
       <Card>
         <InfoRow label={t("booking.tripPrice")} value={formatAmount(base)} />

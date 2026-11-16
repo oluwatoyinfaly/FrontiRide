@@ -45,6 +45,11 @@ export const API_URL = defaultApiUrl();
 
 let authToken: string | null = null;
 
+/** En-têtes d'accès pour les images servies par l'API (photo du chauffeur). */
+export function authImageHeaders(): Record<string, string> {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
 export function setAuthToken(token: string | null) {
   authToken = token;
 }
@@ -216,6 +221,9 @@ export const api = {
     departureAt: string;
     isRoundTrip: boolean;
     seats: number;
+    pickupAddress: string;
+    pickupLat?: number;
+    pickupLng?: number;
   }) =>
     post<{ booking: Booking; price: PriceBreakdown }>(
       "/bookings/frontalier",
@@ -226,6 +234,9 @@ export const api = {
     vehicleId: string;
     startAt: string;
     durationDays: number;
+    pickupAddress: string;
+    pickupLat?: number;
+    pickupLng?: number;
   }) =>
     post<{ booking: Booking; price: PriceBreakdown; advanceFcfa: number }>(
       "/bookings/location-ville",
@@ -266,7 +277,8 @@ export const api = {
     ),
 
   // --- Appels dans l'application ---
-  callsEnabled: () => request<{ enabled: boolean }>("/calls/config"),
+  callsEnabled: () =>
+    request<{ enabled: boolean; phoneMasked: boolean }>("/calls/config"),
 
   startCall: (bookingId: string) =>
     post<{ call: Call; credentials: CallCredentials }>("/calls", { bookingId }),
@@ -309,6 +321,7 @@ export const api = {
     seats: number;
     brand?: string;
     model?: string;
+    color?: string;
     pricePerDay?: number;
   }) => post<Vehicle>("/driver/vehicles", input),
 
@@ -319,7 +332,8 @@ export const api = {
 
   driverRides: () => request<DriverRide[]>("/driver/rides"),
 
-  driverAccept: (id: string) => post<DriverRide>(`/driver/rides/${id}/accept`),
+  driverAccept: (id: string, vehicleId?: string) =>
+    post<DriverRide>(`/driver/rides/${id}/accept`, vehicleId ? { vehicleId } : {}),
 
   driverStart: (id: string) => post<{ ok: boolean }>(`/driver/rides/${id}/start`),
 

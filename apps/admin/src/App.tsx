@@ -8,6 +8,7 @@ import Bookings from "./pages/Bookings";
 import Payments from "./pages/Payments";
 import Withdrawals from "./pages/Withdrawals";
 import Troncons from "./pages/Troncons";
+import Settings from "./pages/Settings";
 
 /** Le logo, repris du tracé maître (brand/frontiride-mark.svg). */
 function Mark({ size = 30 }: { size?: number }) {
@@ -31,6 +32,7 @@ const NAV = [
   { to: "/paiements", label: "Paiements" },
   { to: "/retraits", label: "Retraits" },
   { to: "/troncons", label: "Trançons" },
+  { to: "/reglages", label: "Réglages" },
 ];
 
 export default function App() {
@@ -108,6 +110,7 @@ export default function App() {
           <Route path="/paiements" element={<Payments />} />
           <Route path="/retraits" element={<Withdrawals />} />
           <Route path="/troncons" element={<Troncons />} />
+          <Route path="/reglages" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

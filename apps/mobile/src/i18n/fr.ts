@@ -126,6 +126,7 @@ export const fr = {
   },
 
   contact: {
+    maskedNoCall: "Pour votre confidentialité, les numéros sont masqués : le contact se fait uniquement par l'appel dans l'application.",
     appCall: "Appel FrontiRide",
     appCallHint: "Gratuit, par Internet",
     appCallNeedsBuild: "Indisponible dans Expo Go",
@@ -154,6 +155,8 @@ export const fr = {
     ended: "Appel terminé",
   },
   trips: {
+    vehicle: "Véhicule",
+    plateHint: "Repérez la voiture à sa plaque",
     title: "Mes courses",
     empty: "Aucune course pour l'instant.",
     emptyHint: "Vos réservations apparaîtront ici.",
@@ -202,6 +205,13 @@ export const fr = {
   },
 
   driver: {
+    withVehicle: "Véhicule : %{vehicle}",
+    chooseVehicle: "Avec quel véhicule faites-vous cette course ?",
+    needVehicle: "Ajoutez d'abord un véhicule à votre profil pour accepter une course.",
+    color: "Couleur",
+    cameraDenied: "Autorisez l'appareil photo pour prendre votre photo de profil.",
+    takePhoto: "Prendre la photo",
+    retakePhoto: "Reprendre la photo",
     title: "Espace chauffeur",
     becomeTitle: "Devenir chauffeur FrontiRide",
     becomeBody:
@@ -273,6 +283,21 @@ export const fr = {
     insufficientBalance: "Solde insuffisant.",
   },
 
+  pickup: {
+    title: "Lieu de rendez-vous",
+    label: "Où vous récupérer ?",
+    placeholder: "Ex. devant l'hôtel X, porte B",
+    hint: "Un repère que le chauffeur reconnaîtra facilement.",
+    usePosition: "Utiliser ma position",
+    positionSaved: "Position enregistrée ✓ (appuyer pour actualiser)",
+    permissionDenied: "Position refusée : indiquez le lieu par écrit.",
+    locateFailed: "Position introuvable : indiquez le lieu par écrit.",
+    required: "Indiquez où le chauffeur doit vous récupérer.",
+    go: "Y aller (Google Maps)",
+    goWaze: "Y aller (Waze)",
+    openFailed: "Impossible d'ouvrir l'application de cartes.",
+    hasPosition: "Position GPS partagée par le client",
+  },
   documentType: {
     CNI: "Pièce d'identité",
     PERMIS: "Permis de conduire",
@@ -281,6 +306,7 @@ export const fr = {
     VISITE_TECHNIQUE: "Visite technique",
     CASIER_JUDICIAIRE: "Casier judiciaire",
     PHOTO_VEHICULE: "Photo du véhicule",
+    PHOTO_PROFIL: "Photo de profil (visage)",
   },
 
   profile: {

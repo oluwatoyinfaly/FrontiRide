@@ -59,6 +59,21 @@
     },
     "updates": {
       "url": "https://u.expo.dev/36e54071-32b1-41ed-881e-08ba1ebe308b"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FrontiRide accède à vos photos pour envoyer vos pièces justificatives.",
+          "cameraPermission": "FrontiRide utilise l'appareil photo pour votre photo de profil et vos pièces justificatives."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FrontiRide utilise votre position une seule fois, pour indiquer au chauffeur où vous récupérer."
+        }
+      ]
+    ]
   }
 }

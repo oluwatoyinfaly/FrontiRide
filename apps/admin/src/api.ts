@@ -191,6 +191,12 @@ export interface AdminWithdrawal {
   wallet: { driver: { user: { fullName: string | null; phone: string } } };
 }
 
+export interface AdminSettings {
+  maskPhoneNumbers: boolean;
+  /** Faux tant que les clés Agora ne sont pas configurées côté serveur. */
+  inAppCallsAvailable: boolean;
+}
+
 export interface Trancon {
   id: string;
   originCity: string;
@@ -258,6 +264,13 @@ export const api = {
 
   withdrawals: () => request<AdminWithdrawal[]>("/admin/withdrawals"),
   settleWithdrawal: (id: string) => post(`/admin/withdrawals/${id}/settle`),
+
+  settings: () => request<AdminSettings>("/admin/settings"),
+  updateSettings: (body: { maskPhoneNumbers: boolean }) =>
+    request<AdminSettings>("/admin/settings", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
 
   troncons: () => request<Trancon[]>("/admin/troncons"),
   createTrancon: (body: Omit<Trancon, "id">) => post<Trancon>("/admin/troncons", body),

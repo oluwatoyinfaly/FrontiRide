@@ -8,6 +8,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { ContactActions } from "../components/ContactActions";
 import { EmptyState, InfoRow, Loading, Notice } from "../components/Feedback";
+import { PickupCard } from "../components/PickupCard";
 import { Screen } from "../components/Screen";
 import { StatusBadge } from "../components/StatusBadge";
 import { useSession } from "../auth/SessionProvider";
@@ -45,6 +46,8 @@ export default function DriverHomeScreen({ navigation }: Props) {
   const [busyRide, setBusyRide] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: "success" | "error" } | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  // Course dont le chauffeur choisit en ce moment le véhicule (plusieurs en compte).
+  const [pickingFor, setPickingFor] = useState<string | null>(null);
 
   const hasDriverProfile = Boolean(user?.driverProfile);
 
@@ -309,8 +312,17 @@ export default function DriverHomeScreen({ navigation }: Props) {
 
               {/* Une course acceptée se prépare à deux : le passager doit être
                   joignable avant même le départ. */}
-              {ride.client.phone ? (
-                <ContactActions
+              {ride.vehicle ? (
+                <Text style={[text.caption, { color: colors.textMuted }]}>
+                  {t("driver.withVehicle", {
+                    vehicle: [ride.vehicle.brand, ride.vehicle.model, ride.vehicle.plateNumber]
+                      .filter(Boolean)
+                      .join(" "),
+                  })}
+                </Text>
+              ) : null}
+
+              <ContactActions
                   bookingId={ride.id}
                   phone={ride.client.phone}
                   name={ride.client.fullName}
@@ -322,7 +334,15 @@ export default function DriverHomeScreen({ navigation }: Props) {
                   })}
                   crossBorder={ride.type === "FRONTALIER"}
                 />
-              ) : null}
+
+              <PickupCard
+                pickup={{
+                  address: ride.pickupAddress,
+                  lat: ride.pickupLat,
+                  lng: ride.pickupLng,
+                }}
+                navigable
+              />
 
               <Button
                 label={
@@ -369,17 +389,47 @@ export default function DriverHomeScreen({ navigation }: Props) {
           available.map((ride) => (
             <Card key={ride.id}>
               <RideSummary ride={ride} />
-              <Button
-                label={t("driver.accept")}
-                loading={busyRide === ride.id}
-                onPress={() =>
-                  runRideAction(
-                    ride.id,
-                    () => api.driverAccept(ride.id),
-                    t("driver.accepted")
-                  )
-                }
-              />
+              {pickingFor === ride.id ? (
+                <View style={{ gap: space[2] }}>
+                  <Text style={[text.label, { color: colors.text }]}>
+                    {t("driver.chooseVehicle")}
+                  </Text>
+                  {profile.vehicles.map((v) => (
+                    <Button
+                      key={v.id}
+                      variant="secondary"
+                      label={[v.brand, v.model, v.plateNumber].filter(Boolean).join(" ")}
+                      loading={busyRide === ride.id}
+                      onPress={() => {
+                        setPickingFor(null);
+                        runRideAction(
+                          ride.id,
+                          () => api.driverAccept(ride.id, v.id),
+                          t("driver.accepted")
+                        );
+                      }}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <Button
+                  label={t("driver.accept")}
+                  loading={busyRide === ride.id}
+                  onPress={() => {
+                    if (profile.vehicles.length === 0) {
+                      setNotice({ message: t("driver.needVehicle"), tone: "error" });
+                    } else if (profile.vehicles.length > 1) {
+                      setPickingFor(ride.id);
+                    } else {
+                      runRideAction(
+                        ride.id,
+                        () => api.driverAccept(ride.id),
+                        t("driver.accepted")
+                      );
+                    }
+                  }}
+                />
+              )}
             </Card>
           ))
         )}

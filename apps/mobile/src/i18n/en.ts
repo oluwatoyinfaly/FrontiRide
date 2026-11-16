@@ -133,6 +133,7 @@ export const en: Dictionary = {
   },
 
   contact: {
+    maskedNoCall: "For your privacy, phone numbers are hidden: contact is through in-app calls only.",
     appCall: "FrontiRide call",
     appCallHint: "Free, over the internet",
     appCallNeedsBuild: "Not available in Expo Go",
@@ -161,6 +162,8 @@ export const en: Dictionary = {
     ended: "Call ended",
   },
   trips: {
+    vehicle: "Vehicle",
+    plateHint: "Spot the car by its plate",
     title: "My trips",
     empty: "No trips yet.",
     emptyHint: "Your bookings will show up here.",
@@ -209,6 +212,13 @@ export const en: Dictionary = {
   },
 
   driver: {
+    withVehicle: "Vehicle: %{vehicle}",
+    chooseVehicle: "Which vehicle are you using for this ride?",
+    needVehicle: "Add a vehicle to your profile first to accept a ride.",
+    color: "Colour",
+    cameraDenied: "Allow camera access to take your profile photo.",
+    takePhoto: "Take the photo",
+    retakePhoto: "Retake the photo",
     title: "Driver area",
     becomeTitle: "Become a FrontiRide driver",
     becomeBody:
@@ -280,6 +290,21 @@ export const en: Dictionary = {
     insufficientBalance: "Insufficient balance.",
   },
 
+  pickup: {
+    title: "Pickup point",
+    label: "Where should we pick you up?",
+    placeholder: "E.g. in front of hotel X, gate B",
+    hint: "A landmark the driver will easily recognise.",
+    usePosition: "Use my position",
+    positionSaved: "Position saved ✓ (tap to refresh)",
+    permissionDenied: "Location denied: describe the spot in writing.",
+    locateFailed: "Could not get your position: describe the spot in writing.",
+    required: "Tell the driver where to pick you up.",
+    go: "Navigate (Google Maps)",
+    goWaze: "Navigate (Waze)",
+    openFailed: "Could not open the maps app.",
+    hasPosition: "GPS position shared by the client",
+  },
   documentType: {
     CNI: "ID document",
     PERMIS: "Driving licence",
@@ -288,6 +313,7 @@ export const en: Dictionary = {
     VISITE_TECHNIQUE: "Roadworthiness certificate",
     CASIER_JUDICIAIRE: "Criminal record check",
     PHOTO_VEHICULE: "Vehicle photo",
+    PHOTO_PROFIL: "Profile photo (face)",
   },
 
   profile: {

@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import multipart from "@fastify/multipart";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 
 /**
  * Pièces justificatives des chauffeurs : cartes d'identité, permis, carte
@@ -60,6 +60,23 @@ function sniff(buffer: Buffer): keyof typeof CONTENT_TYPES | null {
 export async function removeStoredFile(url: string): Promise<void> {
   if (!STORED_URL.test(url)) return;
   await unlink(path.join(uploadDir(), path.basename(url))).catch(() => {});
+}
+
+/** Envoie une pièce déjà autorisée par l'appelant (contrôle d'accès fait en amont). */
+export async function sendStored(reply: FastifyReply, name: string) {
+  const file = path.join(uploadDir(), name);
+  const info = await stat(file).catch(() => null);
+  if (!info) {
+    return reply.code(404).send({ error: "Fichier introuvable" });
+  }
+
+  const ext = name.split(".").pop() as keyof typeof CONTENT_TYPES;
+  return reply
+    .header("Content-Type", CONTENT_TYPES[ext])
+    .header("Content-Length", info.size)
+    .header("Cache-Control", "private, max-age=300")
+    .header("X-Content-Type-Options", "nosniff")
+    .send(createReadStream(file));
 }
 
 export default async function fileRoutes(fastify: FastifyInstance) {
@@ -128,19 +145,7 @@ export default async function fileRoutes(fastify: FastifyInstance) {
         return reply.code(404).send({ error: "Fichier introuvable" });
       }
 
-      const file = path.join(uploadDir(), name);
-      const info = await stat(file).catch(() => null);
-      if (!info) {
-        return reply.code(404).send({ error: "Fichier introuvable" });
-      }
-
-      const ext = name.split(".").pop() as keyof typeof CONTENT_TYPES;
-      return reply
-        .header("Content-Type", CONTENT_TYPES[ext])
-        .header("Content-Length", info.size)
-        .header("Cache-Control", "private, max-age=300")
-        .header("X-Content-Type-Options", "nosniff")
-        .send(createReadStream(file));
+      return sendStored(reply, name);
     }
   );
 }

@@ -20,6 +20,7 @@ const REQUIRED: DocumentType[] = [
   "VISITE_TECHNIQUE",
   "CASIER_JUDICIAIRE",
   "PHOTO_VEHICULE",
+  "PHOTO_PROFIL",
 ];
 
 export default function DriverDocumentsScreen() {
@@ -45,16 +46,26 @@ export default function DriverDocumentsScreen() {
   async function pickAndUpload(type: DocumentType) {
     setError(null);
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    // La photo de profil se prend sur le moment, de face : le client doit
+    // reconnaître la personne, pas une image trouvée ailleurs. Les autres
+    // pièces viennent de la galerie.
+    const live = type === "PHOTO_PROFIL";
+    const permission = live
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      setError(t("common.genericError"));
+      setError(live ? t("driver.cameraDenied") : t("common.genericError"));
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
-    });
+      ...(live ? { cameraType: ImagePicker.CameraType.front, allowsEditing: true, aspect: [1, 1] as [number, number] } : {}),
+    };
+    const result = live
+      ? await ImagePicker.launchCameraAsync(options)
+      : await ImagePicker.launchImageLibraryAsync(options);
     if (result.canceled) return;
 
     setBusy(type);
@@ -137,7 +148,13 @@ export default function DriverDocumentsScreen() {
             </View>
 
             <Button
-              label={done ? t("driver.replace") : t("driver.upload")}
+              label={
+                type === "PHOTO_PROFIL"
+                  ? t(done ? "driver.retakePhoto" : "driver.takePhoto")
+                  : done
+                    ? t("driver.replace")
+                    : t("driver.upload")
+              }
               variant="secondary"
               loading={busy === type}
               onPress={() => pickAndUpload(type)}
