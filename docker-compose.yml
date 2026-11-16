@@ -35,8 +35,8 @@ services:
     environment:
       DATABASE_URL: postgresql://frontiride:frontiride@postgres:5432/frontiride?schema=public
       JWT_SECRET: dev-secret-change-me
-      # Adresse vue depuis l'extérieur du conteneur : c'est elle que Fedapay
-      # rappelle, donc le port publié et non le port interne.
+      # Adresse vue depuis l'extérieur du conteneur : le port publié, pas le
+      # port interne.
       APP_URL: http://localhost:${BACKEND_PORT:-47001}
       # Codes de connexion : sans SMTP, ils sont renvoyés par l'API (essais
       # locaux uniquement). Voir apps/backend/.env.example.
@@ -50,8 +50,9 @@ services:
       # simplement masqué côté mobile.
       AGORA_APP_ID: ${AGORA_APP_ID:-}
       AGORA_APP_CERTIFICATE: ${AGORA_APP_CERTIFICATE:-}
-      FEDAPAY_ENV: sandbox
-      FEDAPAY_SECRET_KEY: ${FEDAPAY_SECRET_KEY:-}
+      # Mobile Money via FeexPay ; sans eux, seul l'espèces fonctionne.
+      FEEXPAY_TOKEN: ${FEEXPAY_TOKEN:-}
+      FEEXPAY_SHOP_ID: ${FEEXPAY_SHOP_ID:-}
       PORT: 47001
     ports:
       - "${BACKEND_PORT:-47001}:47001"

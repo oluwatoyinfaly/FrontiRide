@@ -43,8 +43,7 @@ services:
       DATABASE_URL: postgresql://frontiride:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/frontiride?schema=public
       JWT_SECRET: ${SERVICE_PASSWORD_JWT}
       PORT: 47001
-      # Adresse publique de l'API (https://api-test.mondomaine.tld). Fedapay la
-      # rappelle pour confirmer un paiement.
+      # Adresse publique de l'API (https://api-test.mondomaine.tld).
       APP_URL: ${PUBLIC_API_URL}
 
       # --- Aucune donnée fictive ---------------------------------------------
@@ -67,12 +66,12 @@ services:
       # --- Pièces justificatives ---------------------------------------------
       UPLOAD_DIR: /app/apps/backend/uploads
 
-      # --- Paiement (facultatif) ---------------------------------------------
-      # Sans clé, seul le paiement en espèces fonctionne. Avec une clé sandbox
-      # Fedapay, le mobile money aussi.
-      FEDAPAY_ENV: ${FEDAPAY_ENV:-sandbox}
-      FEDAPAY_SECRET_KEY: ${FEDAPAY_SECRET_KEY:-}
-      FEDAPAY_WEBHOOK_SECRET: ${FEDAPAY_WEBHOOK_SECRET:-}
+      # --- Paiement Mobile Money, FeexPay (facultatif) ------------------------
+      # Sans eux, seul le paiement en espèces fonctionne. Les deux valeurs se
+      # trouvent dans le menu « Développeur » du compte FeexPay. Aucun webhook à
+      # déclarer : le serveur interroge FeexPay lui-même pour confirmer.
+      FEEXPAY_TOKEN: ${FEEXPAY_TOKEN:-}
+      FEEXPAY_SHOP_ID: ${FEEXPAY_SHOP_ID:-}
 
       # --- Appel dans l'application (facultatif) ------------------------------
       AGORA_APP_ID: ${AGORA_APP_ID:-}

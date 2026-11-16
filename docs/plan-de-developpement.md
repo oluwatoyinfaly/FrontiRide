@@ -10,7 +10,7 @@ Référence produit : `cahier-des-charges.md`. Objectif : découper la vision co
 | Back-office Admin | **React (Next.js) + Tailwind** — après le MVP, ou API-only avec Postman/Retool en attendant | Réutilise les mêmes devs/typescript que mobile et API |
 | API Backend | **Fastify + TypeScript** | Léger, rapide, bon support plugins/validation (JSON Schema natif), simple à monter en équipe réduite |
 | ORM / Base de données | **PostgreSQL + Prisma** (extension PostGIS activable si besoin géospatial avancé) | Migrations typées, requêtes géospatiales possibles |
-| Paiement | **Fedapay** uniquement au MVP (MoMo MTN/Moov, cartes) | Suffisant pour le corridor Bénin-Togo du pilote ; Paystack ajouté à l'ouverture du Nigeria |
+| Paiement | **FeexPay** uniquement au MVP (MoMo MTN/Moov) | Suffisant pour le corridor Bénin-Togo du pilote ; Paystack ajouté à l'ouverture du Nigeria |
 | Cartographie | **Google Maps API** (Directions, Distance Matrix, Places) | Suivi GPS, estimation trajets, point frontière Hilacondji |
 | Notifications | **Firebase Cloud Messaging** (push) + provider SMS local + email (SendGrid/Postmark) | |
 | Stockage documents (pièces d'identité, permis) | **S3-compatible avec chiffrement AES-256** | Conformité sécurité |
@@ -27,7 +27,7 @@ Le cahier des charges complet est trop large pour un premier lancement. Le MVP r
 - Profil + upload documents chauffeur, validation manuelle admin (pas d'automatisation IA au départ).
 - Réservation Frontalier : Cotonou↔Lomé ou point frontière Hilacondji, date/heure, 1-4 places, estimation prix par trançon fixe (grille admin, pas de calcul dynamique douane au 1er jour).
 - Réservation Location Ville : Cotonou ou Lomé, type véhicule, durée (journée uniquement au MVP, pas "à l'heure"), avance 30% + solde.
-- Paiement **Fedapay** : MoMo MTN/Moov + espèces au chauffeur (carte bancaire peut suivre en V1.1).
+- Paiement **FeexPay** : MoMo MTN/Moov + espèces au chauffeur (carte bancaire peut suivre en V1.1).
 - Paiement séquestre simple (déblocage manuel ou règle 24h automatique).
 - Suivi GPS temps réel (position chauffeur uniquement, pas ETA prédictif avancé).
 - Notation post-course (chauffeur + véhicule).
@@ -54,7 +54,7 @@ Raison de ce découpage : valider d'abord que le tandem "réservation + paiement
 - Trancher les points de la section 7 du cahier des charges (devise abonnement, assurance, cadre juridique, provider paiement).
 - Définir la grille tarifaire initiale des trançons de lancement (Cotonou-Lomé, Hilacondji-Lomé, Bénin-Lagos).
 - Maquettes UI (client, chauffeur, admin) — wireframes des parcours ci-dessus.
-- Choix définitif des providers (Fedapay/Paystack, SMS, hébergement).
+- Choix définitif des providers (FeexPay/Paystack, SMS, hébergement).
 
 ### Phase 1 — Fondations techniques (2-3 semaines)
 - Setup repo(s), CI/CD, environnements (dev/staging/prod).
@@ -67,7 +67,7 @@ Raison de ce découpage : valider d'abord que le tandem "réservation + paiement
 - Réservation Location Ville (journée + avance/solde).
 - Matching / attribution chauffeur (acceptation manuelle depuis le dashboard chauffeur).
 - Suivi GPS temps réel (websocket ou polling + Google Maps).
-- Intégration paiement (Fedapay + Paystack) + logique séquestre.
+- Intégration paiement (FeexPay, puis Paystack) + logique séquestre.
 
 ### Phase 3 — Back-office Admin (parallèle à la Phase 2, 3-4 semaines)
 - Validation chauffeurs/véhicules.
@@ -128,4 +128,4 @@ pendant l'appel, mais ils restent visibles dans la fiche de la course.
 1. Trancher les 5 points ouverts du cahier des charges (section 7).
 2. Choisir la stack définitive (valider Flutter vs React Native si préférence équipe).
 3. Démarrer les maquettes des 3 parcours (client, chauffeur, admin) pour le périmètre MVP défini ci-dessus.
-4. Négocier l'intégration Fedapay/Paystack (délais d'homologation marchand — à lancer tôt, c'est souvent le chemin critique).
+4. Négocier l'intégration FeexPay/Paystack (délais d'homologation marchand — à lancer tôt, c'est souvent le chemin critique).

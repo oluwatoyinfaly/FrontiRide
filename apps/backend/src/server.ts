@@ -12,6 +12,7 @@ import paymentRoutes from "./routes/payments.js";
 import adminRoutes from "./routes/admin.js";
 import callRoutes from "./routes/calls.js";
 import fileRoutes from "./routes/files.js";
+import { startPaymentReconciliation } from "./lib/payments.js";
 
 const fastify = Fastify({
   logger: { level: process.env.LOG_LEVEL ?? "info" },
@@ -55,6 +56,8 @@ const port = Number(process.env.PORT ?? 47001);
 
 try {
   await fastify.listen({ port, host: "0.0.0.0" });
+  // Règle en arrière-plan les paiements que le client n'est pas revenu suivre.
+  startPaymentReconciliation(fastify);
 } catch (error) {
   fastify.log.error(error);
   process.exit(1);

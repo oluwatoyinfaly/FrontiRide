@@ -42,7 +42,9 @@ export function setAuthToken(token: string | null) {
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    /** Corps de la réponse d'erreur, quand l'API y joint autre chose qu'un message. */
+    readonly details?: Record<string, unknown>
   ) {
     super(message);
     this.name = "ApiError";
@@ -92,7 +94,8 @@ async function request<T>(
     if (!response.ok) {
       throw new ApiError(
         response.status,
-        (payload as { error?: string } | null)?.error ?? response.statusText
+        (payload as { error?: string } | null)?.error ?? response.statusText,
+        (payload as Record<string, unknown> | null) ?? undefined
       );
     }
 
@@ -236,10 +239,19 @@ export const api = {
     bookingId: string;
     method: string;
     payFull?: boolean;
+    /** Numéro Mobile Money qui recevra la demande de validation. */
+    phone?: string;
   }) =>
-    post<{ payment: Payment; dueNowFcfa?: number; paymentUrl: string | null }>(
-      "/payments/initiate",
-      input
+    post<{
+      payment: Payment;
+      dueNowFcfa?: number;
+      /** CONFIRMED : réglé en espèces. PENDING : en attente de validation. */
+      status: "CONFIRMED" | "PENDING";
+    }>("/payments/initiate", input),
+
+  paymentStatus: (id: string) =>
+    request<{ status: "PENDING" | "ESCROW_HELD" | "FAILED" }>(
+      `/payments/${id}/status`
     ),
 
   // --- Appels dans l'application ---

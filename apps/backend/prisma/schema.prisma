@@ -259,16 +259,17 @@ model Call {
 }
 
 model Payment {
-  id               String        @id @default(cuid())
-  bookingId        String        @unique
-  method           PaymentMethod
-  status           PaymentStatus @default(PENDING)
-  amountFcfa       Int
-  advanceFcfa      Int? // acompte 30% pour Location Ville
-  fedapayReference String?
-  escrowReleaseAt  DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                String        @id @default(cuid())
+  bookingId         String        @unique
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  amountFcfa        Int
+  advanceFcfa       Int? // acompte 30% pour Location Ville
+  /// Référence de la demande de paiement chez le prestataire (FeexPay).
+  providerReference String?
+  escrowReleaseAt   DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   booking Booking @relation(fields: [bookingId], references: [id])
 }
