@@ -6,6 +6,7 @@ import { CallProvider } from "./src/calls/CallProvider";
 import { I18nProvider } from "./src/i18n";
 import { ThemeProvider, useTheme } from "./src/theme";
 import { useAppFonts } from "./src/theme/useAppFonts";
+import { UpdateBanner } from "./src/updates/UpdateBanner";
 
 function Root() {
   const { isDark } = useTheme();
@@ -13,6 +14,7 @@ function Root() {
     <>
       <StatusBar style={isDark ? "light" : "dark"} />
       <RootNavigator />
+      <UpdateBanner />
     </>
   );
 }

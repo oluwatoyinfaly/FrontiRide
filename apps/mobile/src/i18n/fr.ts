@@ -298,6 +298,11 @@ export const fr = {
     openFailed: "Impossible d'ouvrir l'application de cartes.",
     hasPosition: "Position GPS partagée par le client",
   },
+  update: {
+    ready: "Nouvelle version prête",
+    later: "Plus tard",
+    restart: "Redémarrer",
+  },
   documentType: {
     CNI: "Pièce d'identité",
     PERMIS: "Permis de conduire",

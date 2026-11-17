@@ -133,3 +133,7 @@ un build natif prenant plusieurs minutes de machine payante.
 
 Icône, splash et icône adaptative sont compilés dans les ressources natives.
 Un rechargement Metro ne les met pas à jour : il faut un nouveau build.
+
+## Mises à jour à distance
+
+Voir [mises-a-jour-ota.md](mises-a-jour-ota.md) : publier un correctif JavaScript sans nouveau build.

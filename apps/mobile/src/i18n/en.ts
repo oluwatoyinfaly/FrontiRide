@@ -305,6 +305,11 @@ export const en: Dictionary = {
     openFailed: "Could not open the maps app.",
     hasPosition: "GPS position shared by the client",
   },
+  update: {
+    ready: "New version ready",
+    later: "Later",
+    restart: "Restart",
+  },
   documentType: {
     CNI: "ID document",
     PERMIS: "Driving licence",

@@ -22,6 +22,12 @@ const MOBILE_ENV = `# Adresse de l'API vue depuis le téléphone.
 # port 47001. Décommente et corrige l'IP si la connexion échoue.
 #
 # EXPO_PUBLIC_API_URL="http://192.168.1.42:47001"
+#
+# Pour viser l'API en ligne à la place :
+# EXPO_PUBLIC_API_URL="https://frontiride-api.yindolabs.com"
+#
+# Après tout changement : npx expo start --clear (sinon Metro garde l'ancienne
+# adresse en cache).
 `;
 
 const targets = [
