@@ -96,6 +96,11 @@ $env:EXPO_PUBLIC_API_URL="http://192.168.1.42:47001"; npm start
 
 Pense aussi à autoriser le port 47001 dans le pare-feu Windows — c'est la cause la plus fréquente d'un téléphone qui ne joint pas l'API.
 
+Pour viser l'API **en ligne** au lieu du PC, ou pour construire un APK de test :
+voir [docs/deploiement-test.md, « L'application »](docs/deploiement-test.md#lapplication).
+Après tout changement de `EXPO_PUBLIC_API_URL`, relancer avec `npx expo start --clear`
+(sinon Metro garde l'ancienne adresse en cache).
+
 ## Vérifications
 
 ```bash

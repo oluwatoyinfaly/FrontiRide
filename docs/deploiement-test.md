@@ -54,20 +54,63 @@ documents.
 
 ## L'application
 
-Dans `apps/mobile/eas.json`, profil `staging`, remplace l'URL :
+L'adresse de l'API est **figée dans l'application au moment où elle est
+compilée** (`EXPO_PUBLIC_API_URL`). Sans elle, l'app vise volontairement la
+machine locale (le PC qui sert Metro) : c'est ce qui se passe si l'application
+« essaie toujours de se connecter au serveur local ».
+
+Pour savoir où vous en êtes : en mode développement (Expo Go, `npm start`),
+l'écran de connexion affiche sous le bouton une ligne `API : http://…`. Dans un
+APK, cette ligne n'apparaît pas.
+
+### APK de test (recommandé)
+
+Rien à configurer : dans `apps/mobile/eas.json`, les profils `preview` et
+`staging` contiennent déjà l'adresse en ligne.
 
 ```json
-"EXPO_PUBLIC_API_URL": "https://api-test.mondomaine.tld"
+"EXPO_PUBLIC_API_URL": "https://frontiride-api.yindolabs.com"
 ```
 
-puis, depuis `apps/mobile` :
+Depuis `apps/mobile` :
 
 ```bash
-eas build --profile staging --platform android
+eas build --profile preview --platform android
 ```
 
-L'APK est autonome : ni client de développement ni Metro. Il contient le module
-Agora, donc l'appel dans l'application y fonctionne.
+L'APK est autonome : ni Metro, ni client de développement. Il contient le module
+Agora (appel dans l'application) et celui des mises à jour à distance
+([mises-a-jour-ota.md](mises-a-jour-ota.md)).
+
+⚠️ Le profil `development` ne contient **pas** d'adresse : un APK construit avec
+lui vise la machine locale. On le reconnaît à l'écran de choix de serveur Expo
+qu'il affiche au lancement.
+
+Si l'adresse de l'API change : modifier `eas.json` puis refaire un build (ou
+publier une mise à jour à distance, qui reprend l'adresse du profil).
+
+### Expo Go / `npm start` contre le serveur en ligne
+
+Pour tester les écrans sans faire de build, en visant l'API en ligne plutôt
+que le PC. Dans `apps/mobile/.env`, décommenter la ligne et y mettre l'adresse :
+
+```
+EXPO_PUBLIC_API_URL="https://frontiride-api.yindolabs.com"
+```
+
+puis, depuis `apps/mobile`, relancer **en vidant le cache** :
+
+```powershell
+npx expo start --clear
+```
+
+Le `--clear` est indispensable : Metro garde en cache le code déjà compilé,
+ancienne adresse comprise. Sans lui, l'app continue de viser le serveur local.
+
+Pour revenir au backend local, recommenter la ligne et relancer avec `--clear`.
+
+Limite : sous Expo Go, l'appel dans l'application n'existe pas (module natif
+absent) ; seuls WhatsApp et l'appel téléphonique sont proposés.
 
 ## Le parcours à jouer
 
