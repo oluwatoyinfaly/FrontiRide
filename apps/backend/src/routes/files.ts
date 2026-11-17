@@ -90,7 +90,12 @@ export default async function fileRoutes(fastify: FastifyInstance) {
    */
   fastify.post(
     "/uploads",
-    { preHandler: [fastify.authenticate, fastify.requireDriver] },
+    {
+      preHandler: [fastify.authenticate, fastify.requireDriver],
+      // Huit pièces, quelques reprises : bien au-delà, c'est quelqu'un qui
+      // cherche à remplir le disque.
+      config: { rateLimit: { max: 40, timeWindow: "1 hour" } },
+    },
     async (request, reply) => {
       const part = await request.file();
       if (!part) {

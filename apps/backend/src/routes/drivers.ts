@@ -450,20 +450,30 @@ export default async function driverRoutes(fastify: FastifyInstance) {
 
     // Les gains restent en attente : ils ne basculent en solde retirable
     // qu'au déblocage du séquestre par l'admin (J+2).
-    await fastify.prisma.$transaction([
-      fastify.prisma.booking.update({
-        where: { id },
+    //
+    // Le passage à COMPLETED est conditionnel (encore IN_PROGRESS) et fait dans
+    // la même transaction que le crédit : deux appuis simultanés sur
+    // « Terminer » ne créditent qu'une fois.
+    const credited = await fastify.prisma.$transaction(async (tx) => {
+      const done = await tx.booking.updateMany({
+        where: { id, driverId: request.driverId, status: "IN_PROGRESS" },
         data: {
           status: "COMPLETED",
           completedAt: new Date(),
           finalPriceFcfa: total,
         },
-      }),
-      fastify.prisma.driverWallet.update({
+      });
+      if (done.count === 0) return false;
+      await tx.driverWallet.update({
         where: { id: wallet.id },
         data: { pendingFcfa: { increment: earnings } },
-      }),
-    ]);
+      });
+      return true;
+    });
+
+    if (!credited) {
+      return reply.code(409).send({ error: "Course non terminable" });
+    }
 
     return reply.send({ ok: true, earningsFcfa: earnings });
   });
@@ -471,27 +481,29 @@ export default async function driverRoutes(fastify: FastifyInstance) {
   fastify.post("/driver/withdrawals", asDriver, async (request, reply) => {
     const body = withdrawalSchema.parse(request.body);
 
-    const wallet = await fastify.prisma.driverWallet.findUnique({
-      where: { driverId: request.driverId },
-    });
-
-    if (!wallet || wallet.balanceFcfa < body.amountFcfa) {
-      return reply.code(400).send({ error: "Solde insuffisant" });
-    }
-
-    const [withdrawal] = await fastify.prisma.$transaction([
-      fastify.prisma.withdrawalRequest.create({
+    // Le débit est conditionnel (solde suffisant AU MOMENT du débit) : deux
+    // demandes simultanées ne peuvent pas retirer deux fois le même argent.
+    const withdrawal = await fastify.prisma.$transaction(async (tx) => {
+      const debited = await tx.driverWallet.updateMany({
+        where: { driverId: request.driverId, balanceFcfa: { gte: body.amountFcfa } },
+        data: { balanceFcfa: { decrement: body.amountFcfa } },
+      });
+      if (debited.count === 0) return null;
+      const wallet = await tx.driverWallet.findUniqueOrThrow({
+        where: { driverId: request.driverId },
+      });
+      return tx.withdrawalRequest.create({
         data: {
           walletId: wallet.id,
           amountFcfa: body.amountFcfa,
           destination: body.destination,
         },
-      }),
-      fastify.prisma.driverWallet.update({
-        where: { id: wallet.id },
-        data: { balanceFcfa: { decrement: body.amountFcfa } },
-      }),
-    ]);
+      });
+    });
+
+    if (!withdrawal) {
+      return reply.code(400).send({ error: "Solde insuffisant" });
+    }
 
     return reply.code(201).send(withdrawal);
   });

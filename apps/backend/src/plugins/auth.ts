@@ -26,12 +26,25 @@ declare module "@fastify/jwt" {
 }
 
 export default fp(async (fastify: FastifyInstance) => {
+  // Le secret de secours n'existe qu'en développement déclaré : un oubli de
+  // variable en production ne doit pas laisser signer des jetons avec une
+  // valeur publique, écrite dans ce dépôt.
+  const dev = process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
   const secret = process.env.JWT_SECRET;
-  if (!secret && process.env.NODE_ENV === "production") {
-    throw new Error("JWT_SECRET est obligatoire en production");
+  if (!dev && (!secret || secret.length < 16)) {
+    throw new Error(
+      "JWT_SECRET (16 caractères au moins) est obligatoire hors développement"
+    );
   }
 
-  await fastify.register(jwt, { secret: secret ?? "dev-secret-change-me" });
+  await fastify.register(jwt, {
+    secret: secret ?? "dev-secret-change-me",
+    // Un jeton volé ne doit pas valoir à vie.
+    sign: { expiresIn: process.env.JWT_TTL ?? "30d" },
+    // Les jetons émis avant l'expiration n'en portent pas : on les refuse,
+    // sinon ils resteraient valables à vie. Effet : une reconnexion par code.
+    verify: { requiredClaims: ["exp"] },
+  });
 
   fastify.decorate("authenticate", async (request, reply) => {
     try {
@@ -45,7 +58,13 @@ export default fp(async (fastify: FastifyInstance) => {
     "requireRole",
     (...roles: UserRole[]): Guard =>
       async (request, reply) => {
-        if (!roles.includes(request.user.role)) {
+        // Le rôle est relu en base, pas dans le jeton : un compte retiré du
+        // back-office perd l'accès tout de suite, même avec un jeton encore valide.
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: request.user.userId },
+          select: { role: true },
+        });
+        if (!user || !roles.includes(user.role)) {
           await reply.code(403).send({ error: "Accès refusé" });
         }
       }

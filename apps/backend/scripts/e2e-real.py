@@ -15,6 +15,13 @@ Chaque compte est créé par une vraie inscription ; chaque code est lu dans le
 mail reçu, jamais dans la réponse de l'API.
 """
 import base64, json, os, sys, time, urllib.error, urllib.request, uuid
+from concurrent.futures import ThreadPoolExecutor
+
+
+def together(n, fn):
+    """Lance n fois fn en même temps : de quoi faire apparaître une course de vitesse."""
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        return list(pool.map(lambda _: fn(), range(n)))
 
 API = os.environ.get("API", "http://localhost:47001")
 MAILS = os.environ.get("MAILS", "/tmp/mails.jsonl")
@@ -118,6 +125,15 @@ print("== Inscriptions réelles ==")
 client, client_user = sign_in("awa@e2e.test", {
     "email": "awa@e2e.test", "phone": "+22997111111", "fullName": "Awa Client", "locale": "fr"})
 check("client créé, rôle CLIENT", client_user["role"], "CLIENT")
+time.sleep(31)  # délai entre deux codes : on veut le vrai chemin, pas un 429
+st, hijack, _ = call("POST", "/auth/register", {"email": "awa@e2e.test", "phone": "+22997000000", "fullName": "Pirate", "locale": "fr"})
+me = call("GET", "/me", token=client)[1]
+check("une inscription avec l'email d'un compte vérifié ne le modifie pas",
+      (me["phone"], me["fullName"]), (client_user["phone"], client_user["fullName"]))
+check("... et ne renvoie aucun code", (st, hijack.get("devCodes")), (201, None))
+payload = json.loads(base64.urlsafe_b64decode(client.split(".")[1] + "=="))
+check("le jeton de session expire (30 jours)", round((payload["exp"] - payload["iat"]) / 86400), 30)
+check("un jeton client n'ouvre pas le back-office", call("GET", "/admin/stats", token=client)[0], 403)
 check("son téléphone n'est pas déclaré vérifié", client_user["phoneVerified"], False)
 
 driver, _u = sign_in("kofi@e2e.test", {
@@ -324,8 +340,15 @@ check("l'appel dans l'application reste possible", call("POST", "/calls", {"book
 check("l'admin désactive le masquage", call("PATCH", "/admin/settings", {"maskPhoneNumbers": False}, admin)[1]["maskPhoneNumbers"], False)
 check("les numéros réapparaissent", bool(call("GET", f"/bookings/{bid}", token=client)[1]["driver"]["user"].get("phone")), True)
 check("départ", call("POST", f"/driver/rides/{bid}/start", token=driver)[0], 200)
-done = call("POST", f"/driver/rides/{bid}/complete", token=driver)[1]
+pending_before = call("GET", "/driver/me", token=driver)[1]["wallet"]
+pending_before = pending_before["pendingFcfa"] if pending_before else 0
+results = together(8, lambda: call("POST", f"/driver/rides/{bid}/complete", token=driver))
+wins = [r for r in results if r[0] == 200]
+check("8 « Terminer » simultanés : un seul passe", (len(wins), sorted({r[0] for r in results})), (1, [200, 409]))
+done = wins[0][1]
 check("terminée, gains calculés", done["earningsFcfa"] > 0, True)
+check("... et crédités une seule fois",
+      call("GET", "/driver/me", token=driver)[1]["wallet"]["pendingFcfa"] - pending_before, done["earningsFcfa"])
 check("notation par le client", call("POST", f"/bookings/{bid}/rating", {"score": 5, "comment": "Parfait"}, client)[0], 201)
 
 print("== L'argent : du séquestre au retrait ==")
@@ -334,13 +357,23 @@ check("gains en attente, rien de retirable encore", (wallet["pendingFcfa"] > 0, 
 payments = call("GET", "/admin/payments?status=ESCROW_HELD", token=admin)[1]
 mine = [p for p in payments if p["booking"]["reference"] == ref1]
 check("l'admin voit le paiement sous séquestre", len(mine), 1)
-rel = call("POST", f"/admin/payments/{mine[0]['id']}/release", token=admin)
+results = together(6, lambda: call("POST", f"/admin/payments/{mine[0]['id']}/release", token=admin))
+wins = [r for r in results if r[0] == 200]
+check("6 déblocages simultanés : un seul passe", len(wins), 1)
+rel = wins[0]
 check("déblocage par l'admin", rel[0], 200)
+check("un paiement débloqué ne se rembourse plus", call("POST", f"/admin/payments/{mine[0]['id']}/refund", token=admin)[0], 409)
 wallet = call("GET", "/driver/me", token=driver)[1]["wallet"]
 check("le solde du chauffeur est retirable", (wallet["balanceFcfa"] == rel[1]["releasedFcfa"], wallet["pendingFcfa"]), (True, 0))
-wd = call("POST", "/driver/withdrawals", {"amountFcfa": 5000, "destination": "+22890222222"}, driver)
+balance = wallet["balanceFcfa"]
+results = together(6, lambda: call("POST", "/driver/withdrawals", {"amountFcfa": balance, "destination": "+22890222222"}, driver))
+wins = [r for r in results if r[0] == 201]
+check("6 retraits simultanés de tout le solde : un seul passe", len(wins), 1)
+check("le solde ne passe jamais en négatif", call("GET", "/driver/me", token=driver)[1]["wallet"]["balanceFcfa"], 0)
+wd = wins[0]
 check("demande de retrait", (wd[0], wd[1]["status"]), (201, "REQUESTED"))
 check("l'admin la verse", call("POST", f"/admin/withdrawals/{wd[1]['id']}/settle", token=admin)[0], 200)
+check("... une seule fois", call("POST", f"/admin/withdrawals/{wd[1]['id']}/settle", token=admin)[0], 409)
 
 print("== Contact : appel dans l'application ==")
 st, cfg, _ = call("GET", "/calls/config", token=client)

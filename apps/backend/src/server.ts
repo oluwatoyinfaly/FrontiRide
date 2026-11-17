@@ -2,6 +2,7 @@
 import "./env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import { ZodError } from "zod";
 import prismaPlugin from "./plugins/prisma.js";
 import authPlugin from "./plugins/auth.js";
@@ -31,14 +32,43 @@ fastify.setErrorHandler((error, _request, reply) => {
     });
   }
 
-  fastify.log.error(error);
-  const status = error.statusCode ?? 500;
+  const err = error as { statusCode?: number; message?: string };
+  const status = err.statusCode ?? 500;
+  if (status >= 500) fastify.log.error(error);
   return reply
     .code(status)
-    .send({ error: status >= 500 ? "Erreur serveur" : error.message });
+    .send({ error: status >= 500 ? "Erreur serveur" : err.message });
 });
 
 await fastify.register(cors, { origin: true });
+
+/**
+ * Limitation de débit, par adresse IP du visiteur. L'API est derrière
+ * Cloudflare puis le proxy de Coolify : l'adresse vue par le serveur est celle
+ * du proxy, commune à tous. On lit donc celle que Cloudflare transmet, puis la
+ * première de X-Forwarded-For. Ces en-têtes peuvent être forgés par qui appelle
+ * l'origine en direct ; la limite reste alors au moins par en-tête, et les
+ * plafonds par compte (délai entre deux codes, essais ratés) ne dépendent pas
+ * de l'IP.
+ */
+export function clientIp(request: { headers: Record<string, unknown>; ip: string }): string {
+  const cf = request.headers["cf-connecting-ip"];
+  if (typeof cf === "string" && cf) return cf;
+  const xff = request.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff) return xff.split(",")[0].trim();
+  return request.ip;
+}
+
+await fastify.register(rateLimit, {
+  global: true,
+  max: Number(process.env.RATE_LIMIT_PER_MINUTE ?? 600),
+  timeWindow: "1 minute",
+  keyGenerator: clientIp,
+  errorResponseBuilder: () => ({
+    statusCode: 429,
+    message: "Trop de requêtes, réessayez dans un instant",
+  }),
+});
 await fastify.register(prismaPlugin);
 await fastify.register(authPlugin);
 

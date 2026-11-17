@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { mailConfigured, sendOtpEmail } from "./mail.js";
 
@@ -36,7 +37,8 @@ function delivered(channel: OtpChannel): boolean {
 }
 
 function generateCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // Générateur cryptographique : Math.random est prévisible.
+  return String(randomInt(100000, 1000000));
 }
 
 export interface IssuedOtp {

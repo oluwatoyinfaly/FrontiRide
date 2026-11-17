@@ -22,4 +22,9 @@ if (existsSync(envFile)) {
   for (const [key, value] of Object.entries(explicit)) {
     if (value !== undefined) process.env[key] = value;
   }
+
+  // Un fichier .env, c'est un poste de développement : sans précision, on s'y
+  // considère en développement (secret JWT de secours, codes affichés).
+  // Les déploiements n'ont pas ce fichier et fixent NODE_ENV eux-mêmes.
+  process.env.NODE_ENV ??= "development";
 }

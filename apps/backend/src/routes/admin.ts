@@ -294,30 +294,42 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       Math.round(payment.amountFcfa * (1 - wallet.commissionRate))
     );
 
-    await fastify.prisma.$transaction([
-      fastify.prisma.payment.update({
-        where: { id },
+    // Transition conditionnelle : deux clics simultanés ne débloquent qu'une fois.
+    const released = await fastify.prisma.$transaction(async (tx) => {
+      const won = await tx.payment.updateMany({
+        where: { id, status: "ESCROW_HELD" },
         data: { status: "RELEASED" },
-      }),
-      fastify.prisma.driverWallet.update({
+      });
+      if (won.count === 0) return false;
+      await tx.driverWallet.update({
         where: { id: wallet.id },
         data: {
           pendingFcfa: { decrement: amount },
           balanceFcfa: { increment: amount },
         },
-      }),
-    ]);
+      });
+      return true;
+    });
+
+    if (!released) {
+      return reply.code(409).send({ error: "Ce paiement n'est pas sous séquestre" });
+    }
 
     return reply.send({ ok: true, releasedFcfa: amount });
   });
 
   fastify.post("/admin/payments/:id/refund", async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    const payment = await fastify.prisma.payment.update({
-      where: { id },
+    // Seul un montant encore sous séquestre se rembourse : un paiement déjà
+    // débloqué au chauffeur, ou jamais encaissé, ne doit pas changer d'état.
+    const refunded = await fastify.prisma.payment.updateMany({
+      where: { id, status: "ESCROW_HELD" },
       data: { status: "REFUNDED" },
     });
-    return reply.send(payment);
+    if (refunded.count === 0) {
+      return reply.code(409).send({ error: "Ce paiement n'est pas sous séquestre" });
+    }
+    return reply.send(await fastify.prisma.payment.findUnique({ where: { id } }));
   });
 
   // --- Retraits chauffeurs ---
@@ -338,11 +350,14 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.post("/admin/withdrawals/:id/settle", async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
-    const withdrawal = await fastify.prisma.withdrawalRequest.update({
-      where: { id },
+    const settled = await fastify.prisma.withdrawalRequest.updateMany({
+      where: { id, status: "REQUESTED" },
       data: { status: "PAID", settledAt: new Date() },
     });
-    return reply.send(withdrawal);
+    if (settled.count === 0) {
+      return reply.code(409).send({ error: "Ce retrait est déjà réglé" });
+    }
+    return reply.send(await fastify.prisma.withdrawalRequest.findUnique({ where: { id } }));
   });
 
   // --- Tarifs ---

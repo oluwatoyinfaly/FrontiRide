@@ -227,3 +227,15 @@ Tarifs relevés en novembre 2026 ; ils bougent, vérifie avant de t'engager.
 | **SMS** (Africa's Talking, Termii, Infobip) | Tarif par pays | Couverture Bénin/Togo à vérifier opérateur par opérateur |
 
 Aucun service ne fournit de code gratuit sur le téléphone ; seul l'email l'est.
+
+## Sécurité : ce que le déploiement impose
+
+- `NODE_ENV=production` est fixé dans `docker-compose.coolify.yml` : l'API ne
+  renvoie jamais de code de connexion, et refuse de démarrer sans un
+  `JWT_SECRET` d'au moins 16 caractères (généré par Coolify).
+- Les jetons de session expirent au bout de 30 jours (`JWT_TTL`). Les jetons
+  émis avant cette règle sont refusés : chacun se reconnecte une fois par code.
+- Limitation de débit par IP (lue dans `CF-Connecting-IP`, Cloudflare) :
+  600 requêtes par minute (`RATE_LIMIT_PER_MINUTE`), et 20 envois de code par
+  10 minutes (`AUTH_RATE_LIMIT`), 40 téléversements par heure.
+- Le back-office est servi avec une politique de contenu (CSP) stricte et HSTS.
