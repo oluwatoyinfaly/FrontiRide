@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert, Linking, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
+import { versionLabel } from "../updates/UpdateBanner";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { ProfileStackParamList } from "../navigation/types";
 import { Button } from "../components/Button";
@@ -205,7 +206,7 @@ export default function ProfileScreen({ navigation }: Props) {
         style={[text.caption, { color: colors.textFaint, textAlign: "center" }]}
       >
         {t("profile.version", {
-          version: Constants.expoConfig?.version ?? "0.1.0",
+          version: versionLabel(Constants.expoConfig?.version),
         })}
       </Text>
     </Screen>

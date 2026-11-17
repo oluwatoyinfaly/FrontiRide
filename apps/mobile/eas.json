@@ -24,7 +24,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://frontiride-api.yindolabs.com"
-      }
+      },
+      "channel": "staging"
     },
     "preview": {
       "distribution": "internal",
